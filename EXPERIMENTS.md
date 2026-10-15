@@ -10,6 +10,7 @@ This registry tracks all empirical investigations conducted in this repository. 
 | :--- | :--- | :---: | :---: | :---: | :--- |
 | [EXP-01-BASIS](#exp-01-basis-approximation-and-harmonic-decomposition) | Basis Function Approximation of Softmax Attention | Modal NVIDIA T4 GPU | Completed | Relative Frobenius Error & $R^2$ | Degree-2 polynomial captures $>99.99\%$ of attention power at $\beta = 1/\sqrt{d}$; entropy decays logarithmically. |
 | [EXP-02-CONV](#exp-02-end-to-end-convergence-and-solvability-benchmark) | Convergence & Solvability Benchmark on Real Data | Modal NVIDIA T4 GPU | Completed | Test $R^2$ & GPU Wall-Clock Sec | Gram Warm-Start improves California $R^2$ by $+0.0226$; Solvable RegBlock beats FT-T by $+0.0478$ on Kin8nm (13% faster). |
+| [EXP-03-SEQ](#exp-03-sequence-modeling-and-scaling-benchmark) | Sequence Modeling & Scaling Benchmark | Modal NVIDIA T4 GPU | Completed | Latency (ms), Memory (MB), MQAR Acc | Pure Linear Attention achieves 6.6x speedup (32.5ms vs 215.5ms) and 11.8x memory reduction (442.6MB vs 5210.3MB) at T=4096. |
 
 ---
 
@@ -71,3 +72,36 @@ At standard transformer temperature $\beta = 1/\sqrt{d}$, Softmax attention beha
 #### Key Findings
 1. **Gram Precision Metric Warm-Start (Model B):** Pre-aligning query-key matrices with the empirical precision metric eliminates the cold-start penalty on collinear tabular data, boosting California Housing $R^2$ by $+0.0226$.
 2. **Solvable Regression Block Dominance (Model C):** On non-linear physical interactions (Kin8nm), solving the explicit degree-2 polynomial expansion directly via GPU Ridge regression outperforms iterative multi-head attention by **$+4.8\%$ ($0.9266$ vs $0.8788$)** while running **$13\%$ faster**.
+
+---
+
+### EXP-03: Sequence Modeling and Scaling Benchmark
+
+- **Date:** 2026-10-16
+- **Compute:** Modal Serverless GPU (NVIDIA T4, 16GB) — Run time ~90s (Cost: < $0.01)
+- **Execution Script:** [`experiments/run_sequence_benchmark.py`](experiments/run_sequence_benchmark.py) (Cloud runner: [`experiments/modal_sequence_runner.py`](experiments/modal_sequence_runner.py))
+- **Artifacts:**
+  - Metrics JSON: [`results/exp03_sequence_bulk_margin/metrics.json`](results/exp03_sequence_bulk_margin/metrics.json)
+  - Figure 8 (MQAR Accuracy vs Epochs): [`results/exp03_sequence_bulk_margin/fig_mqar_accuracy.png`](results/exp03_sequence_bulk_margin/fig_mqar_accuracy.png)
+  - Figure 9 (Latency Scaling vs $T$): [`results/exp03_sequence_bulk_margin/fig_scaling_latency.png`](results/exp03_sequence_bulk_margin/fig_scaling_latency.png)
+  - Figure 10 (Memory Scaling vs $T$): [`results/exp03_sequence_bulk_margin/fig_scaling_memory.png`](results/exp03_sequence_bulk_margin/fig_scaling_memory.png)
+
+#### Models Evaluated
+1. **Standard Softmax Attention:** Multi-head causal attention with quadratic $O(T^2)$ Softmax.
+2. **Pure Linear Attention:** Causal linear attention via non-negative kernel feature map ($\text{ELU}(x) + 1$) and cumulative prefix sum $S_t = \sum_{\tau=1}^t \phi(k_\tau) v_\tau^\top$.
+3. **Two-Stream Bulk + Margin Attention:** Hybrid layer combining linear causal attention (bulk) with local-window ($w=32$) and landmark attention (margin), fused via a data-dependent surprise gate $\alpha_t = \sigma(X W_g)$.
+
+#### Quantitative Scaling Results (Batch Size $B=4$ on NVIDIA T4 GPU)
+
+| Sequence Length $T$ | Metric | Standard Softmax | Pure Linear Attention | Two-Stream Bulk+Margin |
+| :---: | :--- | :---: | :---: | :---: |
+| **$T = 256$** | Latency (ms)<br>Peak Memory (MB) | $6.17\text{ ms}$<br>$42.3\text{ MB}$ | $9.21\text{ ms}$<br>$44.3\text{ MB}$ | $15.47\text{ ms}$<br>$61.8\text{ MB}$ |
+| **$T = 512$** | Latency (ms)<br>Peak Memory (MB) | $6.30\text{ ms}$<br>$106.8\text{ MB}$ | $8.77\text{ ms}$<br>$70.8\text{ MB}$ | $14.03\text{ ms}$<br>$156.1\text{ MB}$ |
+| **$T = 1024$** | Latency (ms)<br>Peak Memory (MB) | $15.94\text{ ms}$<br>$355.9\text{ MB}$ | **$9.15\text{ ms}$** ($1.7\times$ faster)<br>**$123.9\text{ MB}$** ($2.9\times$ smaller) | $29.75\text{ ms}$<br>$496.9\text{ MB}$ |
+| **$T = 2048$** | Latency (ms)<br>Peak Memory (MB) | $56.55\text{ ms}$<br>$1,334.0\text{ MB}$ | **$15.94\text{ ms}$** (**$3.5\times$ faster**)<br>**$231.0\text{ MB}$** (**$5.8\times$ smaller**) | $99.25\text{ ms}$<br>$1,781.2\text{ MB}$ |
+| **$T = 4096$** | Latency (ms)<br>Peak Memory (MB) | $215.45\text{ ms}$<br>$5,210.3\text{ MB}$ | **$32.52\text{ ms}$** (**$6.6\times$ faster**)<br>**$442.6\text{ MB}$** (**$11.8\times$ smaller**) | $357.02\text{ ms}$<br>$6,767.0\text{ MB}$ |
+
+#### Key Findings
+1. **Linear Attention Scaling Supremacy:** As sequence length scales from $T=256$ to $T=4096$, Pure Linear Attention maintains strict $O(T)$ scaling, delivering a **$6.6\times$ execution speedup** ($32.52\text{ ms}$ vs $215.45\text{ ms}$) and an **$11.8\times$ memory footprint reduction** ($442.6\text{ MB}$ vs $5,210.3\text{ MB}$) compared to Standard Softmax attention.
+2. **Associative Recall Information Bottleneck:** In 15 epochs of training on Multi-Query Associative Recall (MQAR), Pure Linear Attention plateaued at $\le 2.66\%$ accuracy, empirically confirming that unwhitened linear accumulators suffer from severe retrieval blur without non-linear competitive normalization.
+3. **Sparse Kernel Engineering Lesson:** In the PyTorch prototype of Two-Stream attention, dense tensor materialization for masked landmarks incurred unnecessary matrix overhead at $T=4096$. Realizing the full speedup of the margin stream requires block-sparse tensor primitives (e.g., Triton kernels) rather than dense masked projections.
