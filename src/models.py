@@ -358,11 +358,196 @@ class TwoStreamBulkMarginAttention(nn.Module):
         return (1.0 - alpha) * bulk_out + alpha * margin_out
 
 
+class CausalDeltaAttention(nn.Module):
+    """
+    Delta-Rule / Least-Mean-Squares (LMS) Attention (Schlag et al., 2021; Titani, 2024):
+    Maintains a rolling memory state S_t in R^{d_k x d_v}.
+    Updates via the prediction innovation error e_t = v_t - S_{t-1}^T k_t
+    using an input-dependent scalar learning rate beta_t = sigmoid(W_beta x_t).
+    Compute: O(d) per token, O(1) memory at inference.
+    """
+
+    def __init__(self, d_model: int, n_heads: int):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_head = d_model // n_heads
+
+        self.q_proj = nn.Linear(d_model, d_model, bias=False)
+        self.k_proj = nn.Linear(d_model, d_model, bias=False)
+        self.v_proj = nn.Linear(d_model, d_model, bias=False)
+        self.out_proj = nn.Linear(d_model, d_model, bias=False)
+
+        # Input-dependent learning rate (step size)
+        self.beta_proj = nn.Linear(d_model, n_heads)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, C = x.shape
+        q = self.q_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)  # (B, H, T, d)
+        k = self.k_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
+        v = self.v_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
+        beta = torch.sigmoid(self.beta_proj(x)).view(B, T, self.n_heads).permute(0, 2, 1).unsqueeze(-1) # (B, H, T, 1)
+
+        # Normalize keys for numerical stability
+        k = torch.nn.functional.normalize(k, p=2, dim=-1)
+
+        # Sequential unrolling across sequence length T
+        S = torch.zeros(B, self.n_heads, self.d_head, self.d_head, device=x.device)
+        outputs = []
+
+        for t in range(T):
+            k_t = k[:, :, t, :]      # (B, H, d)
+            v_t = v[:, :, t, :]      # (B, H, d)
+            q_t = q[:, :, t, :]      # (B, H, d)
+            beta_t = beta[:, :, t, :] # (B, H, 1)
+
+            # 1. Predict value from current memory
+            # S^T k_t -> (B, H, d)
+            v_pred = torch.einsum("bhde,bhd->bhe", S, k_t)
+
+            # 2. Innovation error (residual)
+            e_t = v_t - v_pred
+
+            # 3. Delta update: S_t = S_{t-1} + beta_t * (k_t * e_t^T)
+            delta_S = beta_t.unsqueeze(-1) * torch.einsum("bhd,bhe->bhde", k_t, e_t)
+            S = S + delta_S
+
+            # 4. Read out value for query q_t
+            y_t = torch.einsum("bhde,bhd->bhe", S, q_t)
+            outputs.append(y_t)
+
+        out = torch.stack(outputs, dim=2)  # (B, H, T, d)
+        out = out.transpose(1, 2).contiguous().view(B, T, C)
+        return self.out_proj(out)
+
+    def init_state(self, batch_size: int, device: torch.device) -> torch.Tensor:
+        """Returns initial memory state (B, H, d, d) for constant O(1) inference."""
+        return torch.zeros(batch_size, self.n_heads, self.d_head, self.d_head, device=device)
+
+    def step(self, x_t: torch.Tensor, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Single-token constant O(1) autoregressive generation step."""
+        B, C = x_t.shape
+        q = self.q_proj(x_t).view(B, self.n_heads, self.d_head)
+        k = torch.nn.functional.normalize(self.k_proj(x_t).view(B, self.n_heads, self.d_head), p=2, dim=-1)
+        v = self.v_proj(x_t).view(B, self.n_heads, self.d_head)
+        beta = torch.sigmoid(self.beta_proj(x_t)).unsqueeze(-1)
+
+        v_pred = torch.einsum("bhde,bhd->bhe", state, k)
+        e_t = v_t = v - v_pred
+        new_state = state + beta.unsqueeze(-1) * torch.einsum("bhd,bhe->bhde", k, e_t)
+        y = torch.einsum("bhde,bhd->bhe", new_state, q).view(B, C)
+        return self.out_proj(y), new_state
+
+
+class CausalRLSAttention(nn.Module):
+    """
+    Causal Recursive Least Squares (RLS) / Kalman Filter Attention:
+    Maintains:
+    - S_t: associative memory matrix in R^{d_k x d_v}
+    - P_t: online precision / inverse covariance matrix in R^{d_k x d_k}
+
+    Update equations per token:
+      e_t = v_t - S_{t-1}^T k_t           (Prediction innovation error)
+      u_t = P_{t-1} k_t
+      K_t = u_t / (lambda + k_t^T u_t)    (Optimal Kalman Gain)
+      P_t = (P_{t-1} - K_t u_t^T) / lambda (Sherman-Morrison covariance update)
+      S_t = S_{t-1} + K_t e_t^T           (Optimal error-correcting memory update)
+      out_t = S_t^T q_t
+    """
+
+    def __init__(self, d_model: int, n_heads: int, lambda_decay: float = 0.999, delta_reg: float = 1.0):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_head = d_model // n_heads
+        self.lambda_decay = lambda_decay
+        self.delta_reg = delta_reg
+
+        self.q_proj = nn.Linear(d_model, d_model, bias=False)
+        self.k_proj = nn.Linear(d_model, d_model, bias=False)
+        self.v_proj = nn.Linear(d_model, d_model, bias=False)
+        self.out_proj = nn.Linear(d_model, d_model, bias=False)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, C = x.shape
+        q = self.q_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)  # (B, H, T, d)
+        k = self.k_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
+        v = self.v_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
+
+        # Normalize keys for numerical stability
+        k = torch.nn.functional.normalize(k, p=2, dim=-1)
+
+        # Initialize State S_0 and Covariance P_0 = delta^{-1} * I
+        S = torch.zeros(B, self.n_heads, self.d_head, self.d_head, device=x.device)
+        eye = torch.eye(self.d_head, device=x.device).unsqueeze(0).unsqueeze(0)
+        P = eye.repeat(B, self.n_heads, 1, 1) / self.delta_reg
+
+        outputs = []
+
+        for t in range(T):
+            k_t = k[:, :, t, :]  # (B, H, d)
+            v_t = v[:, :, t, :]  # (B, H, d)
+            q_t = q[:, :, t, :]  # (B, H, d)
+
+            # 1. Innovation error: e_t = v_t - S_{t-1}^T k_t
+            v_pred = torch.einsum("bhde,bhd->bhe", S, k_t)
+            e_t = v_t - v_pred
+
+            # 2. Kalman Gain: u_t = P_{t-1} k_t
+            u_t = torch.einsum("bhij,bhj->bhi", P, k_t)  # (B, H, d)
+            denom = self.lambda_decay + torch.einsum("bhd,bhd->bh", k_t, u_t).unsqueeze(-1) + 1e-5
+            K_t = u_t / denom  # (B, H, d)
+
+            # 3. Update Covariance: P_t = (P_{t-1} - K_t u_t^T) / lambda
+            P = (P - torch.einsum("bhi,bhj->bhij", K_t, u_t)) / self.lambda_decay
+
+            # 4. Update Memory: S_t = S_{t-1} + K_t e_t^T
+            S = S + torch.einsum("bhd,bhe->bhde", K_t, e_t)
+
+            # 5. Readout for query q_t
+            y_t = torch.einsum("bhde,bhd->bhe", S, q_t)
+            outputs.append(y_t)
+
+        out = torch.stack(outputs, dim=2)  # (B, H, T, d)
+        out = out.transpose(1, 2).contiguous().view(B, T, C)
+        return self.out_proj(out)
+
+    def init_state(self, batch_size: int, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
+        """Returns initial (S, P) states for constant O(1) memory autoregressive inference."""
+        S = torch.zeros(batch_size, self.n_heads, self.d_head, self.d_head, device=device)
+        eye = torch.eye(self.d_head, device=device).unsqueeze(0).unsqueeze(0)
+        P = eye.repeat(batch_size, self.n_heads, 1, 1) / self.delta_reg
+        return S, P
+
+    def step(
+        self, x_t: torch.Tensor, state: tuple[torch.Tensor, torch.Tensor]
+    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+        """Single-token constant O(1) autoregressive generation step."""
+        S, P = state
+        B, C = x_t.shape
+        q = self.q_proj(x_t).view(B, self.n_heads, self.d_head)
+        k = torch.nn.functional.normalize(self.k_proj(x_t).view(B, self.n_heads, self.d_head), p=2, dim=-1)
+        v = self.v_proj(x_t).view(B, self.n_heads, self.d_head)
+
+        v_pred = torch.einsum("bhde,bhd->bhe", S, k)
+        e_t = v - v_pred
+        u_t = torch.einsum("bhij,bhj->bhi", P, k)
+        denom = self.lambda_decay + torch.einsum("bhd,bhd->bh", k, u_t).unsqueeze(-1) + 1e-5
+        K_t = u_t / denom
+
+        new_P = (P - torch.einsum("bhi,bhj->bhij", K_t, u_t)) / self.lambda_decay
+        new_S = S + torch.einsum("bhd,bhe->bhde", K_t, e_t)
+        y = torch.einsum("bhde,bhd->bhe", new_S, q).view(B, C)
+        return self.out_proj(y), (new_S, new_P)
+
+
 class SequenceTransformer(nn.Module):
     """
     Autoregressive Sequence Transformer backbone supporting:
     - attn_type="standard": Standard Multi-Head Softmax Attention
-    - attn_type="linear": Causal Linear Attention
+    - attn_type="linear": Causal Linear Attention (Unnormalized accumulator)
+    - attn_type="delta": Delta-Rule / LMS Attention (Innovation with scalar gain)
+    - attn_type="rls": Causal RLS / Kalman Filter Attention (Optimal innovation with matrix gain)
     - attn_type="two_stream": Two-Stream Bulk + Margin Attention
     """
 
@@ -374,7 +559,7 @@ class SequenceTransformer(nn.Module):
         n_layers: int = 2,
         d_ffn: int = 128,
         max_seq_len: int = 4096,
-        attn_type: str = "two_stream",
+        attn_type: str = "rls",
         dropout: float = 0.0,
     ):
         super().__init__()
@@ -391,6 +576,10 @@ class SequenceTransformer(nn.Module):
                 attn = CausalStandardAttention(d_model, n_heads, dropout=dropout)
             elif attn_type == "linear":
                 attn = CausalLinearAttention(d_model, n_heads)
+            elif attn_type == "delta":
+                attn = CausalDeltaAttention(d_model, n_heads)
+            elif attn_type == "rls":
+                attn = CausalRLSAttention(d_model, n_heads)
             elif attn_type == "two_stream":
                 attn = TwoStreamBulkMarginAttention(d_model, n_heads)
             else:
@@ -417,11 +606,11 @@ class SequenceTransformer(nn.Module):
         x = self.tok_emb(idx) + self.pos_emb[:, :T, :]
 
         for layer in self.layers:
-            # Pre-LN Transformer block
             h = layer["norm1"](x)
             x = x + layer["attn"](h)
             x = x + layer["ffn"](layer["norm2"](x))
 
         x = self.final_norm(x)
         return self.head(x)  # (B, T, vocab_size)
+
 
