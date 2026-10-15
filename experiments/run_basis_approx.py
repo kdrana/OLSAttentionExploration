@@ -4,18 +4,23 @@ Supports Apple Silicon (MPS), CUDA, and standard CPU.
 """
 
 import os
+import sys
 import json
 import math
+
+# Add repository root to sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import torch
 import numpy as np
-from kernels import (
+from src.kernels import (
     exact_softmax_attention,
     taylor_polynomial_attention,
     positive_random_features_attention,
     gegenbauer_bessel_spectrum,
 )
-from metrics import relative_frobenius_error, attention_entropy, effective_rank, r2_score
-from tasks import generate_synthetic_data
+from src.metrics import relative_frobenius_error, attention_entropy, effective_rank, r2_score
+from src.tasks import generate_synthetic_data
 
 
 def get_device() -> torch.device:
@@ -202,10 +207,14 @@ def main():
         "exp4_entropy_rank": exp4_data,
     }
 
-    with open("results/experiment_results.json", "w") as f:
+    out_dir = os.path.join(os.path.dirname(__file__), "../results/exp01_basis_approximation")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, "metrics.json")
+
+    with open(out_path, "w") as f:
         json.dump(all_results, f, indent=2)
 
-    print("All experiments completed successfully! Results saved to results/experiment_results.json")
+    print(f"All experiments completed successfully! Results saved to {out_path}")
 
 
 if __name__ == "__main__":

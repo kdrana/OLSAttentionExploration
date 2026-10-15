@@ -1,83 +1,104 @@
-# OLS & Softmax Attention: Kernel Basis Function Exploration
+# OLS & Softmax Attention: Statistical Foundations, Kernel Approximations, and Solvable Architectures
 
-This project provides an experimental testbed investigating how **the kernel trick and specific basis function families** relate to **Softmax Attention** and **Ordinary Least Squares (OLS)**.
+[![Repository Guidelines](https://img.shields.io/badge/Agent%20Standard-AGENTS.md-blue)](AGENTS.md)
+[![Experiment Registry](https://img.shields.io/badge/Registry-EXPERIMENTS.md-success)](EXPERIMENTS.md)
+[![Paper Manuscript](https://img.shields.io/badge/Manuscript-paper%2Fmanuscript.md-orange)](paper/manuscript.md)
 
----
+This repository explores the statistical and mathematical continuum bridging **Ordinary Least Squares (OLS)**, **Kernel Ridge Regression**, and **Softmax Attention** (prompted by Philippe Goulet Coulombe, arXiv:2504.09663). 
 
-## Theoretical Context
-
-1. **The OLS Connection:** 
-   Linear cross-attention without softmax is algebraically equivalent to OLS predictions in a normalized factor space:
-   $$A_{\text{linear}} \propto \boldsymbol{Q}\boldsymbol{K}^\top \implies \hat{\boldsymbol{y}} = \boldsymbol{X}_{\text{test}} (\boldsymbol{X}^\top \boldsymbol{X})^{-1} \boldsymbol{X}^\top \boldsymbol{y}$$
-2. **The Softmax Exponential Kernel:**
-   Softmax attention uses the unnormalized kernel $K(\boldsymbol{q}, \boldsymbol{k}) = \exp(\beta \, \boldsymbol{q}^\top \boldsymbol{k})$.
-   On normalized tokens ($\|\boldsymbol{q}\| = \|\boldsymbol{k}\| = 1$, as enforced by LayerNorm/RMSNorm), this is an exponential dot-product kernel on the unit hypersphere $\mathbb{S}^{d-1}$.
-3. **Basis Function Families Explored:**
-   - **Gegenbauer / Spherical Harmonics:** The canonical orthogonal basis on $\mathbb{S}^{d-1}$ with Bessel function coefficients $I_\nu(\beta)$.
-   - **Taylor / Tensor Polynomials:** Truncated polynomial cross-features (Degree-1 = linear/OLS, Degree-2 = pairwise quadratic interactions).
-   - **Positive Random Features (FAVOR+ / PRF):** Non-negative Gaussian tilted random feature maps.
+We investigate whether kernel approximations (Taylor polynomials, Gegenbauer spherical harmonics, Positive Random Features) and closed-form linear algebraic solvers can replace or accelerate expensive iterative attention mechanisms.
 
 ---
 
-## Project Structure
+## Key Empirical Findings
+
+All experiments have been benchmarked on cloud GPUs (Modal NVIDIA T4) and logged in [`EXPERIMENTS.md`](EXPERIMENTS.md):
+
+1. **Polynomial Domination in the Weak-Coupling Regime:**
+   At standard transformer temperature ($\beta = 1/\sqrt{d}$), a **Degree-2 Taylor polynomial expansion achieves $< 0.01\%$ relative Frobenius error** against exact Softmax attention, outperforming Positive Random Features (FAVOR+) by two orders of magnitude ([EXP-01](EXPERIMENTS.md#exp-01-basis-approximation-and-harmonic-decomposition)).
+2. **Gram Precision Metric Warm-Start Boosts Tabular Convergence:**
+   Initializing query and key projection weights to the empirical Mahalanobis precision metric $W_Q = W_K = (\frac{1}{N} X^\top X + \lambda \boldsymbol{I})^{-1/2}$ eliminates the cold-start penalty on collinear tabular data, improving test $R^2$ on California Housing by **$+0.0226$** ([EXP-02](EXPERIMENTS.md#exp-02-end-to-end-convergence-and-solvability-benchmark)).
+3. **Solvable Regression Blocks Outperform Iterative Attention:**
+   On dense non-linear physics (Kin8nm robot arm kinematics), replacing iterative multi-head attention with an explicit Degree-2 cross-feature expansion solved in a single closed-form GPU Ridge step **outperformed standard FT-Transformer by $+4.8\%$ ($R^2 = 0.9266$ vs $0.8788$) while running $13\%$ faster** ([EXP-02](EXPERIMENTS.md#exp-02-end-to-end-convergence-and-solvability-benchmark)).
+
+---
+
+## Repository Structure
 
 ```
-.
-├── kernels.py          # Exact Softmax, Taylor Deg-1 & 2, PRF, and Gegenbauer-Bessel expansions
-├── metrics.py          # Relative Frobenius error, attention entropy, effective rank, R^2
-├── tasks.py            # Synthetic DGPs (Linear, Interaction, Friedman nonlinear)
-├── run_experiments.py  # Automated experiment runner (CPU / Apple Silicon MPS / CUDA)
-├── plot_results.py     # Generates publication-quality figures into results/
-├── results/            # Generated plots and JSON logs
-├── requirements.txt    # Minimal dependencies
-└── README.md
+OLSAttentionExploration/
+├── README.md                          # Repository overview & setup
+├── AGENTS.md                          # Mandatory AI agent protocols & standards
+├── GEMINI.md                          # Antigravity agent configuration
+├── EXPERIMENTS.md                     # Master index of all empirical runs & metrics
+├── requirements.txt                   # Dependencies
+│
+├── src/                               # Pure, reusable mathematical modules
+│   ├── kernels.py                     # Exact Softmax, Taylor, Gegenbauer, PRF
+│   ├── models.py                      # FT-Transformer, Gram Warm-Start, Solvable RegBlock
+│   ├── data_loader.py                 # California Housing, Kin8nm, Friedman-1 loaders
+│   ├── metrics.py                     # Frobenius error, entropy, effective rank, R²
+│   └── tasks.py                       # Synthetic DGPs
+│
+├── experiments/                       # Executable benchmark scripts & cloud runners
+│   ├── run_basis_approx.py            # Local/CPU basis error testbed
+│   ├── run_convergence.py             # Local/GPU 35-epoch convergence benchmark
+│   ├── plot_basis_results.py          # Figures 1-4 generator
+│   ├── plot_convergence.py            # Figures 5-7 generator
+│   ├── modal_basis_runner.py          # Modal cloud runner for EXP-01
+│   └── modal_convergence_runner.py    # Modal cloud runner for EXP-02
+│
+├── results/                           # Self-contained experiment artifacts
+│   ├── exp01_basis_approximation/     # Figures 1-4 & metrics.json
+│   └── exp02_convergence_benchmark/   # Figures 5-7 & metrics.json
+│
+├── docs/                              # Theoretical deep-dives & literature notes
+│   └── PREDICTIVE_CODING_KALMAN_ATTENTION.md  # Top-down/bottom-up & Kalman theory
+│
+└── paper/                             # Publication-ready manuscript
+    ├── manuscript.md                  # Complete technical report / preprint draft
+    └── references.bib                 # BibTeX references
 ```
 
 ---
 
-## Running on MacBook Pro M3 (Apple Silicon)
+## Quickstart
 
-Your MacBook Pro M3 with 18GB of unified memory is ideal for this benchmark. The script automatically detects and utilizes **Apple Silicon Metal (MPS)** for fast tensor matrix multiplications.
-
-### Quick Setup:
-
+### Local Environment Setup
 ```bash
-# 1. Clone or copy this directory to your MacBook Pro
-cd OLSAttentionExploration
-
-# 2. Create virtual environment using uv or python3 venv
-uv venv
+# Create and activate virtual environment
+python3 -m venv .venv
 source .venv/bin/activate
 
-# 3. Install dependencies
-uv pip install -r requirements.txt
-# (or: pip install torch numpy scipy matplotlib)
+# Install dependencies
+pip install -r requirements.txt
+```
 
-# 4. Run the experiments
-python run_experiments.py
+### Running Experiments Locally
+```bash
+# Run EXP-01: Basis approximation testbed
+python experiments/run_basis_approx.py
+python experiments/plot_basis_results.py
 
-# 5. Generate the plots
-python plot_results.py
+# Run EXP-02: 35-epoch convergence benchmark
+python experiments/run_convergence.py
+python experiments/plot_convergence.py
+```
+
+### Running on Cloud GPU (Modal)
+```bash
+# Authenticate Modal (one-time setup)
+modal setup
+
+# Execute EXP-01 or EXP-02 on an NVIDIA T4 GPU (auto-stops when finished)
+modal run experiments/modal_basis_runner.py
+modal run experiments/modal_convergence_runner.py
 ```
 
 ---
 
-## What the Experiments Test
+## Documentation & Manuscript
 
-### Experiment 1: Basis Approximation Error vs. Inverse Temperature $\beta$
-* Compares the relative Frobenius norm error $\|A_{\text{approx}} - A_{\text{softmax}}\|_F / \|A_{\text{softmax}}\|_F$.
-* Tests where the linear / degree-1 approximation (OLS) holds, where degree-2 holds, and how Positive Random Features scale.
-
-### Experiment 2: Gegenbauer-Bessel Harmonic Power Spectrum
-* Solves the exact analytical Bessel expansion:
-  $$c_n(\beta, d) \propto \frac{I_{n + \frac{d-2}{2}}(\beta)}{\beta^{\frac{d-2}{2}}}$$
-* Shows that at small $\beta$ (high temperature / early layers), only order 0 (uniform pooling) and order 1 (OLS linear) carry significant power. As $\beta$ grows, higher-order spherical harmonics activate.
-
-### Experiment 3: Downstream In-Context Regression ($R^2$)
-* Evaluates out-of-sample $R^2$ across three distinct data regimes:
-  1. **Linear DGP:** Where OLS (Degree-1) is optimal.
-  2. **Interaction DGP:** Where Degree-2 pairwise features bridge the gap.
-  3. **Friedman DGP:** Where full softmax attention / higher-order harmonics dominate.
-
-### Experiment 4: Attention Entropy & Output Effective Rank
-* Measures the thermodynamic transition of attention: from smooth kernel averaging (high entropy) to sharp discrete routing (low entropy), alongside the effective rank of output tokens.
+- **Theory:** [Predictive Coding, Kalman Filters, and Top-Down / Bottom-Up Attention](docs/PREDICTIVE_CODING_KALMAN_ATTENTION.md)
+- **Experiment Registry:** [Master Experiment Registry](EXPERIMENTS.md)
+- **Manuscript Draft:** [Paper Draft](paper/manuscript.md)

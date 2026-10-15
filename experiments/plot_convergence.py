@@ -11,7 +11,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_convergence_results(results_path: str = "results/convergence_results.json"):
+def plot_convergence_results(results_path: str = None, out_dir: str = None):
+    if results_path is None:
+        p1 = "results/exp02_convergence_benchmark/metrics.json"
+        p2 = "results/convergence_results.json"
+        results_path = p1 if os.path.exists(p1) else p2
+
+    if out_dir is None:
+        out_dir = "results/exp02_convergence_benchmark" if os.path.exists("results/exp02_convergence_benchmark") else "results"
+
     if not os.path.exists(results_path):
         print(f"File {results_path} not found.")
         return
@@ -19,7 +27,7 @@ def plot_convergence_results(results_path: str = "results/convergence_results.js
     with open(results_path, "r") as f:
         data = json.load(f)
 
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(out_dir, exist_ok=True)
     plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
 
     datasets = list(data.keys())
@@ -59,9 +67,9 @@ def plot_convergence_results(results_path: str = "results/convergence_results.js
 
     plt.suptitle("Learning Acceleration: Test $R^2$ vs. Training Epochs", fontsize=15, fontweight="bold", y=1.02)
     plt.tight_layout()
-    plt.savefig("results/fig_convergence_epochs.png", dpi=300, bbox_inches="tight")
+    plt.savefig(os.path.join(out_dir, "fig_convergence_epochs.png"), dpi=300, bbox_inches="tight")
     plt.close()
-    print("Saved results/fig_convergence_epochs.png")
+    print(f"Saved {os.path.join(out_dir, 'fig_convergence_epochs.png')}")
 
     # -----------------------------------------------------------------
     # Figure 2: Test R^2 vs Wall-clock GPU Seconds (3 Subplots)
@@ -95,9 +103,9 @@ def plot_convergence_results(results_path: str = "results/convergence_results.js
 
     plt.suptitle("Wall-Clock Efficiency: Test $R^2$ vs. GPU Execution Time", fontsize=15, fontweight="bold", y=1.02)
     plt.tight_layout()
-    plt.savefig("results/fig_convergence_wallclock.png", dpi=300, bbox_inches="tight")
+    plt.savefig(os.path.join(out_dir, "fig_convergence_wallclock.png"), dpi=300, bbox_inches="tight")
     plt.close()
-    print("Saved results/fig_convergence_wallclock.png")
+    print(f"Saved {os.path.join(out_dir, 'fig_convergence_wallclock.png')}")
 
     # -----------------------------------------------------------------
     # Figure 3: Final Test R^2 Comparison Bar Chart
@@ -125,9 +133,9 @@ def plot_convergence_results(results_path: str = "results/convergence_results.js
     ax.set_ylim(-0.05, 1.05)
     ax.legend(frameon=True, fontsize=10)
     plt.tight_layout()
-    plt.savefig("results/fig_final_r2_comparison.png", dpi=300)
+    plt.savefig(os.path.join(out_dir, "fig_final_r2_comparison.png"), dpi=300)
     plt.close()
-    print("Saved results/fig_final_r2_comparison.png")
+    print(f"Saved {os.path.join(out_dir, 'fig_final_r2_comparison.png')}")
 
 
 if __name__ == "__main__":

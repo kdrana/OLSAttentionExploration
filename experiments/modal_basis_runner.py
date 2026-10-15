@@ -11,11 +11,11 @@ app = modal.App("ols-attention-exploration")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("torch", "numpy", "scipy", "matplotlib")
-    .add_local_python_source("kernels", "metrics", "tasks", "run_experiments", "plot_results")
+    .add_local_python_source("src", "experiments")
 )
 
 
-@app.function(image=image, gpu="T4", timeout=600)
+@app.function(image=image, gpu="T4", timeout=300)
 def run_cloud_experiments():
     import os
     import json
@@ -25,14 +25,13 @@ def run_cloud_experiments():
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
     print(f"\n[Modal Cloud Worker] Active Device: {device} ({gpu_name})")
 
-    # Import project modules (automatically mounted by Modal from current working directory)
-    from run_experiments import (
+    from experiments.run_basis_approx import (
         experiment_basis_approximation_vs_beta,
         experiment_bessel_harmonic_spectrum,
         experiment_downstream_r2,
         experiment_entropy_and_rank,
     )
-    from plot_results import plot_all
+    from experiments.plot_basis_results import plot_all
 
     os.makedirs("results", exist_ok=True)
 
@@ -80,12 +79,13 @@ def main():
     print("🚀 Launching OLS-Attention testbed on Modal (NVIDIA T4 Cloud GPU)...")
     results = run_cloud_experiments.remote()
 
-    os.makedirs("results", exist_ok=True)
+    dest_dir = "results/exp01_basis_approximation"
+    os.makedirs(dest_dir, exist_ok=True)
     print(f"\n✅ Modal execution finished! Received {len(results)} artifact(s):")
     for filename, content in sorted(results.items()):
-        dest = os.path.join("results", filename)
+        dest = os.path.join(dest_dir, filename)
         with open(dest, "wb") as f:
             f.write(content)
         print(f"   • Saved: {dest} ({len(content):,} bytes)")
 
-    print("\n🎉 All experimental figures and JSON metrics updated in results/!")
+    print(f"\n🎉 All experimental figures and JSON metrics updated in {dest_dir}/!")

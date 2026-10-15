@@ -12,7 +12,7 @@ app = modal.App("ols-attention-convergence")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install("torch", "numpy", "scipy", "matplotlib", "scikit-learn", "pandas")
-    .add_local_python_source("data_loader", "models", "train_benchmark", "plot_convergence", "metrics", "kernels")
+    .add_local_python_source("src", "experiments")
 )
 
 
@@ -21,8 +21,8 @@ def run_cloud_convergence():
     import json
     import os
     import torch
-    from train_benchmark import run_convergence_suite
-    from plot_convergence import plot_convergence_results
+    from experiments.run_convergence import run_convergence_suite
+    from experiments.plot_convergence import plot_convergence_results
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
@@ -38,7 +38,7 @@ def run_cloud_convergence():
         json.dump(all_results, f, indent=2)
 
     print("[Modal Cloud Worker] Generating convergence figures...")
-    plot_convergence_results(results_path)
+    plot_convergence_results(results_path, out_dir="results")
 
     # Collect artifacts
     artifacts = {}
@@ -63,12 +63,15 @@ def main():
     print("🚀 Launching Convergence Benchmark on Modal (NVIDIA T4 Cloud GPU)...")
     results = run_cloud_convergence.remote()
 
-    os.makedirs("results", exist_ok=True)
+    dest_dir = "results/exp02_convergence_benchmark"
+    os.makedirs(dest_dir, exist_ok=True)
     print(f"\n✅ Remote execution completed! Received {len(results)} artifact(s):")
     for filename, content in sorted(results.items()):
-        dest = os.path.join("results", filename)
+        # Map convergence_results.json to metrics.json
+        local_name = "metrics.json" if filename == "convergence_results.json" else filename
+        dest = os.path.join(dest_dir, local_name)
         with open(dest, "wb") as f:
             f.write(content)
         print(f"   • Saved: {dest} ({len(content):,} bytes)")
 
-    print("\n🎉 Convergence plots & metrics synchronized locally in results/!")
+    print(f"\n🎉 Convergence plots & metrics synchronized locally in {dest_dir}/!")

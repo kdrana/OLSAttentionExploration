@@ -5,13 +5,20 @@ Training loop and convergence benchmarking for:
 3. Solvable Degree-2 Regression Block Model
 """
 
+import os
+import sys
 import time
+import json
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from data_loader import load_benchmark_dataset
-from models import StandardFTTransformer, GramInitFTTransformer, SolvableRegressionBlockModel
-from metrics import r2_score
+
+# Add repo root to sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from src.data_loader import load_benchmark_dataset
+from src.models import StandardFTTransformer, GramInitFTTransformer, SolvableRegressionBlockModel
+from src.metrics import r2_score
 
 
 def train_single_model(
@@ -142,3 +149,20 @@ def run_convergence_suite(
         print(f"Final Test R^2: {hist_c['test_r2'][-1]:.4f} (Epoch 0 R^2: {hist_c['test_r2'][0]:.4f}) in {hist_c['wallclock_sec'][-1]:.2f}s")
 
     return all_results
+
+
+def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+    print(f"Running convergence suite on {device}...")
+    results = run_convergence_suite(device=device, n_epochs=35)
+
+    out_dir = os.path.join(os.path.dirname(__file__), "../results/exp02_convergence_benchmark")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, "metrics.json")
+    with open(out_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Convergence results saved to {out_path}")
+
+
+if __name__ == "__main__":
+    main()

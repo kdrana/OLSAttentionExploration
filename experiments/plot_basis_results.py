@@ -8,16 +8,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_all():
-    results_path = "results/experiment_results.json"
+def plot_all(results_path: str = None, out_dir: str = None):
+    if results_path is None:
+        p1 = "results/exp01_basis_approximation/metrics.json"
+        p2 = "results/experiment_results.json"
+        results_path = p1 if os.path.exists(p1) else p2
+
+    if out_dir is None:
+        out_dir = "results/exp01_basis_approximation" if os.path.exists("results/exp01_basis_approximation") else "results"
+
     if not os.path.exists(results_path):
-        print("Results file not found. Run run_experiments.py first.")
+        print(f"Results file not found at {results_path}. Run run_basis_approx.py first.")
         return
 
     with open(results_path, "r") as f:
         data = json.load(f)
 
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(out_dir, exist_ok=True)
     plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
 
     # -------------------------------------------------------------
@@ -38,9 +45,9 @@ def plot_all():
     plt.title("Approximation Error of Basis Families vs. Softmax Attention", fontsize=13, fontweight="bold")
     plt.legend(frameon=True, fontsize=10)
     plt.tight_layout()
-    plt.savefig("results/fig1_basis_approximation_error.png", dpi=300)
+    plt.savefig(os.path.join(out_dir, "fig1_basis_approximation_error.png"), dpi=300)
     plt.close()
-    print("Saved results/fig1_basis_approximation_error.png")
+    print(f"Saved {os.path.join(out_dir, 'fig1_basis_approximation_error.png')}")
 
     # -------------------------------------------------------------
     # Figure 2: Gegenbauer-Bessel Harmonic Power Spectrum
@@ -73,9 +80,9 @@ def plot_all():
     plt.title(f"Spherical Harmonic Power Decomposition on $S^{{{exp2['d']-1}}}$ (Bessel Expansion)", fontsize=13, fontweight="bold")
     plt.legend(frameon=True, fontsize=10)
     plt.tight_layout()
-    plt.savefig("results/fig2_bessel_harmonic_spectrum.png", dpi=300)
+    plt.savefig(os.path.join(out_dir, "fig2_bessel_harmonic_spectrum.png"), dpi=300)
     plt.close()
-    print("Saved results/fig2_bessel_harmonic_spectrum.png")
+    print(f"Saved {os.path.join(out_dir, 'fig2_bessel_harmonic_spectrum.png')}")
 
     # -------------------------------------------------------------
     # Figure 3: Downstream In-Context Regression R^2 Comparison
@@ -99,9 +106,9 @@ def plot_all():
     ax.set_ylim(-0.1, 1.05)
     ax.legend(frameon=True, fontsize=10)
     plt.tight_layout()
-    plt.savefig("results/fig3_downstream_r2_comparison.png", dpi=300)
+    plt.savefig(os.path.join(out_dir, "fig3_downstream_r2_comparison.png"), dpi=300)
     plt.close()
-    print("Saved results/fig3_downstream_r2_comparison.png")
+    print(f"Saved {os.path.join(out_dir, 'fig3_downstream_r2_comparison.png')}")
 
     # -------------------------------------------------------------
     # Figure 4: Attention Entropy & Output Effective Rank
@@ -127,9 +134,9 @@ def plot_all():
 
     plt.title(r"Thermodynamic Phase Shift: Entropy Decay & Rank Collapse vs. $\beta$", fontsize=13, fontweight="bold")
     fig.tight_layout()
-    plt.savefig("results/fig4_entropy_and_rank.png", dpi=300)
+    plt.savefig(os.path.join(out_dir, "fig4_entropy_and_rank.png"), dpi=300)
     plt.close()
-    print("Saved results/fig4_entropy_and_rank.png")
+    print(f"Saved {os.path.join(out_dir, 'fig4_entropy_and_rank.png')}")
 
 
 if __name__ == "__main__":
