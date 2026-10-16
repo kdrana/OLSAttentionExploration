@@ -342,6 +342,9 @@ class TransformerBlock(nn.Module):
             self.attn = LlamaFlashOLSAttention(d_model, n_heads, chunk_size=64, rank=32)
         elif attn_type == "fast_flash_ols":
             self.attn = FastLlamaFlashOLSAttention(d_model, n_heads, chunk_size=64, rank=16)
+        elif attn_type == "fused_triton_ols":
+            from src.fused_ols_triton import FusedLlamaFlashOLSAttention
+            self.attn = FusedLlamaFlashOLSAttention(d_model, n_heads, rank=16)
         else:
             raise ValueError(f"Unknown attn_type: {attn_type}")
         self.norm2 = RMSNorm(d_model)
@@ -540,12 +543,15 @@ def run_fast_ols_benchmark(
         "Softmax SLM (Llama-Nano)": lambda: SmallLanguageModel12M(vocab_size=8192, d_model=256, n_layers=10, n_heads=8, d_ffn=680, attn_type="softmax").to(device),
         "Flash-OLS SLM (Baseline V2)": lambda: SmallLanguageModel12M(vocab_size=8192, d_model=256, n_layers=10, n_heads=8, d_ffn=680, attn_type="flash_ols").to(device),
         "Fast-Flash-OLS SLM (Fast V3)": lambda: SmallLanguageModel12M(vocab_size=8192, d_model=256, n_layers=10, n_heads=8, d_ffn=680, attn_type="fast_flash_ols").to(device),
+        "Fused-Flash-OLS SLM (Triton V4)": lambda: SmallLanguageModel12M(vocab_size=8192, d_model=256, n_layers=10, n_heads=8, d_ffn=680, attn_type="fused_triton_ols").to(device),
     }
 
-    def _norm(s):
-        return s.lower().replace("_", "").replace("-", "")
+    def _matches(target, name):
+        words = target.lower().replace("_", " ").replace("-", " ").split()
+        name_clean = name.lower()
+        return any(w in name_clean for w in words if len(w) > 3)
 
-    selected_names = [k for k in all_models if target_models is None or any(_norm(t) in _norm(k) for t in target_models)]
+    selected_names = [k for k in all_models if target_models is None or any(_matches(t, k) for t in target_models)]
     models = {k: all_models[k]() for k in selected_names}
 
     results = {}

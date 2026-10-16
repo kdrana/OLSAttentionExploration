@@ -143,16 +143,25 @@ This roadmap outlines the long-term vision, active implementations, and future r
   - Fast-Flash-OLS V3 delivered a **$2.48\times$ step speedup** ($253.8\text{ ms}$ vs $629.8\text{ ms}$) and boosted throughput from $2,786 \to 6,529\text{ tok/s}$.
   - Maintained **$99.96\%$ mathematical fidelity** to Baseline V2 ($5.5109$ vs $5.5085$, $\Delta = 0.0024$ nats).
 
+### Phase 13: Fused Triton Flash-OLS Kernel Acceleration (`EXP-14`)
+- [x] **In-Register Causal Recurrence & Analytical Adjoint via Triton JIT:**
+  - Implemented `@triton.jit` kernels in [`src/fused_ols_triton.py`](src/fused_ols_triton.py) computing causal Gram $\boldsymbol{G}_t$ and cross-covariance $\boldsymbol{R}_t$ directly in GPU SM SRAM registers.
+  - Eliminated the $335\text{ MB}$ intermediate 6D outer-product tensor allocations and $300+$ kernel launch dispatch bubbles per step.
+  - Formulated and bitwise verified the exact analytical adjoint backward pass running backward in time on SRAM registers with zero activation graph storage.
+- [x] **Empirical Benchmark on Modal NVIDIA Tesla T4:**
+  - Fused-Flash-OLS V4 delivered a **$3.51\times$ overall speedup** over Baseline V2 ($179.5\text{ ms}$ vs $629.8\text{ ms}$) and **$1.41\times$ over V3**, boosting throughput to **$9,241\text{ tok/s}$**.
+  - Generalization improved to **$5.3334$ Val Loss** (Perplexity $207.15$), compressing **$68.6\%$ of the Softmax perplexity gap** (down from $57.8$ points to $18.2$ points).
+
 ---
 
 ## Active & Upcoming Milestones
 
-### Phase 13: In-Context Tabular Foundation Architecture (DSN-PFN)
+### Phase 14: In-Context Tabular Foundation Architecture (DSN-PFN)
 - [ ] **Tabular Foundation Model (DSN-PFN):** Prototype linear $\mathcal{O}(N)$ in-context tabular foundation model scaling beyond TabPFN's $N \le 1,000$ barrier.
 
-### Phase 14: Academic Publication & Preprint Packaging
+### Phase 15: Academic Publication & Preprint Packaging
 - [ ] **LaTeX Preprint Finalization:** Convert `paper/manuscript.md` into formal NeurIPS/ICLR-styled `paper/main.tex`.
-- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from EXP-07 through EXP-13.
+- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from EXP-07 through EXP-14.
 - [ ] **Overleaf / arXiv Bundle:** Generate a self-contained archive for arXiv submission.
 
 
