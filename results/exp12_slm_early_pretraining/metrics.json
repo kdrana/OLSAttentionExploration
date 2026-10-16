@@ -1,0 +1,178 @@
+{
+  "Softmax SLM (Llama-Nano)": {
+    "n_parameters": 9946368,
+    "total_time_s": 23.329047197999998,
+    "mean_step_time_ms": 55.56894745142856,
+    "tokens_per_sec": 30725.64404008113,
+    "trace": [
+      {
+        "step": 0,
+        "val_loss": 235.24122924804686,
+        "val_ppl": 1.4587060310720534e+102,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "train_loss": 234.68026733398438,
+        "grad_norm": 43.225364685058594,
+        "step_time_ms": 339.86222100000066
+      },
+      {
+        "step": 25,
+        "val_loss": 24.690209452311198,
+        "val_ppl": 52822836958.93189,
+        "sample_generation": "",
+        "train_loss": 25.828357696533203,
+        "grad_norm": 13.226127624511719,
+        "step_time_ms": 53.77645699999789
+      },
+      {
+        "step": 50,
+        "val_loss": 15.982258542378743,
+        "val_ppl": 8729848.226453949,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in a big the very grandmayyyyyyyyyyyyyyyyendendendendendendendendendendendend",
+        "train_loss": 15.900862693786621,
+        "grad_norm": 4.622445583343506,
+        "step_time_ms": 48.72842799999688
+      },
+      {
+        "step": 100,
+        "val_loss": 9.300917434692384,
+        "val_ppl": 10948.05873105183,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in a big. drove and the clumsy. He said and the consequences. He said, and said, but it was very!\"\nThe grandma. He was so excited",
+        "train_loss": 9.94520378112793,
+        "grad_norm": 4.849025249481201,
+        "step_time_ms": 47.15409299999962
+      },
+      {
+        "step": 150,
+        "val_loss": 7.032180690765381,
+        "val_ppl": 1132.4975463374356,
+        "sample_generation": "",
+        "train_loss": 6.63824462890625,
+        "grad_norm": 2.067034959793091,
+        "step_time_ms": 54.035047999999364
+      },
+      {
+        "step": 200,
+        "val_loss": 5.961132335662842,
+        "val_ppl": 388.0492775923158,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in a little boy Andy, they had been a small into a little boy, but Lily was a big big, but then, but she was sad and the ground.",
+        "train_loss": 6.094391822814941,
+        "grad_norm": 2.6810171604156494,
+        "step_time_ms": 49.92856200000162
+      },
+      {
+        "step": 250,
+        "val_loss": 5.461277453104655,
+        "val_ppl": 235.39794220774823,
+        "sample_generation": "",
+        "train_loss": 5.602507591247559,
+        "grad_norm": 2.488347291946411,
+        "step_time_ms": 54.44387000000006
+      },
+      {
+        "step": 300,
+        "val_loss": 5.305254745483398,
+        "val_ppl": 201.39229965827724,
+        "sample_generation": "",
+        "train_loss": 5.252309799194336,
+        "grad_norm": 1.6124300956726074,
+        "step_time_ms": 54.96911700000595
+      },
+      {
+        "step": 350,
+        "val_loss": 5.241739908854167,
+        "val_ppl": 188.9986569319372,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in a small so nice.\n<|endoftext|>\nOnce upon a time, there was a little girl called her mom. She loved to play outside in her mommy and",
+        "train_loss": 5.252309799194336,
+        "grad_norm": 1.6124300956726074
+      }
+    ]
+  },
+  "Flash-OLS SLM (FlashOLS-Nano)": {
+    "n_parameters": 9946368,
+    "total_time_s": 257.321627611,
+    "mean_step_time_ms": 629.7512028857142,
+    "tokens_per_sec": 2785.6189417688815,
+    "trace": [
+      {
+        "step": 0,
+        "val_loss": 186.08279113769532,
+        "val_ppl": 6.527236794186074e+80,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a",
+        "train_loss": 185.1937255859375,
+        "grad_norm": 119.53971099853516,
+        "step_time_ms": 912.5035279999985
+      },
+      {
+        "step": 25,
+        "val_loss": 26.405046971639,
+        "val_ppl": 293471677273.7305,
+        "sample_generation": "",
+        "train_loss": 27.310352325439453,
+        "grad_norm": 21.833681106567383,
+        "step_time_ms": 622.2124230000006
+      },
+      {
+        "step": 50,
+        "val_loss": 16.53758494059245,
+        "val_ppl": 15211844.725248085,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in auryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryuryury",
+        "train_loss": 16.892009735107422,
+        "grad_norm": 10.319016456604004,
+        "step_time_ms": 631.7503129999977
+      },
+      {
+        "step": 100,
+        "val_loss": 9.635900052388509,
+        "val_ppl": 15304.467410709523,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in auryuryuryuryury said, but he could arms arms arms arms arms arms arms arms arms arms arms arms arms arms arms in his fish and of of!\"",
+        "train_loss": 9.090497970581055,
+        "grad_norm": 3.3628571033477783,
+        "step_time_ms": 624.8957270000091
+      },
+      {
+        "step": 150,
+        "val_loss": 7.4505285580952965,
+        "val_ppl": 1720.7724332487767,
+        "sample_generation": "",
+        "train_loss": 6.873173713684082,
+        "grad_norm": 3.7026617527008057,
+        "step_time_ms": 628.4142199999962
+      },
+      {
+        "step": 200,
+        "val_loss": 6.2481387456258135,
+        "val_ppl": 517.0495677437073,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in a it.\nHer mom was sad and say he wanted to tell song. He looked safe started to race the please. He lived lived was so excited and said",
+        "train_loss": 6.4626946449279785,
+        "grad_norm": 2.668384552001953,
+        "step_time_ms": 620.9404829999983
+      },
+      {
+        "step": 250,
+        "val_loss": 5.825317414601644,
+        "val_ppl": 338.7686461287788,
+        "sample_generation": "",
+        "train_loss": 5.4699506759643555,
+        "grad_norm": 2.5957839488983154,
+        "step_time_ms": 632.8242900000021
+      },
+      {
+        "step": 300,
+        "val_loss": 5.543587652842204,
+        "val_ppl": 255.59333668145905,
+        "sample_generation": "",
+        "train_loss": 5.339654922485352,
+        "grad_norm": 1.9676812887191772,
+        "step_time_ms": 635.4591659999755
+      },
+      {
+        "step": 350,
+        "val_loss": 5.508457597096761,
+        "val_ppl": 246.7702142877009,
+        "sample_generation": "Once upon a time, there was a little bird named Pip who lived in a big man. The little boy was so excited to come back to all the doll. The bird on a big a big it and he was so happy.\n",
+        "train_loss": 5.339654922485352,
+        "grad_norm": 1.9676812887191772
+      }
+    ]
+  }
+}
