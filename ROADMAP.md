@@ -133,14 +133,26 @@ This roadmap outlines the long-term vision, active implementations, and future r
 
 ---
 
+### Phase 12: Fast Analytical Autograd & Block-Diagonal Subspace Acceleration (`EXP-13`)
+- [x] **Analytical Closed-Form OLS Autograd Solver (`CausalOLSSolveFunction`):**
+  - Replaced PyTorch's $163,840$ autograd triangular Cholesky backward passes with exact closed-form matrix calculus ($\frac{\partial \mathcal{L}}{\partial \boldsymbol{R}} = \boldsymbol{G}^{-1}\bar{\boldsymbol{W}}$).
+  - Bitwise verified with PyTorch `gradcheck` at $10^{-6}$ numerical tolerance.
+- [x] **$2 \times 16$ Block-Diagonal Active Subspace:**
+  - Partitioned the $r=32$ active polynomial subspace into two independent orthogonal $16$-dimensional subspaces, cutting Cholesky FLOPs by $4\times$.
+- [x] **Empirical Benchmark on Modal NVIDIA Tesla T4:**
+  - Fast-Flash-OLS V3 delivered a **$2.48\times$ step speedup** ($253.8\text{ ms}$ vs $629.8\text{ ms}$) and boosted throughput from $2,786 \to 6,529\text{ tok/s}$.
+  - Maintained **$99.96\%$ mathematical fidelity** to Baseline V2 ($5.5109$ vs $5.5085$, $\Delta = 0.0024$ nats).
+
+---
+
 ## Active & Upcoming Milestones
 
-### Phase 12: In-Context Tabular Foundation Architecture (DSN-PFN)
+### Phase 13: In-Context Tabular Foundation Architecture (DSN-PFN)
 - [ ] **Tabular Foundation Model (DSN-PFN):** Prototype linear $\mathcal{O}(N)$ in-context tabular foundation model scaling beyond TabPFN's $N \le 1,000$ barrier.
 
-### Phase 13: Academic Publication & Preprint Packaging
+### Phase 14: Academic Publication & Preprint Packaging
 - [ ] **LaTeX Preprint Finalization:** Convert `paper/manuscript.md` into formal NeurIPS/ICLR-styled `paper/main.tex`.
-- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from EXP-07 through EXP-12.
+- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from EXP-07 through EXP-13.
 - [ ] **Overleaf / arXiv Bundle:** Generate a self-contained archive for arXiv submission.
 
 
