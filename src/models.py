@@ -541,6 +541,380 @@ class CausalRLSAttention(nn.Module):
         return self.out_proj(y), (new_S, new_P)
 
 
+class ChunkwiseRidgeAttention(nn.Module):
+    """
+    Chunkwise Closed-Form Ridge Attention (Micro-Solver Layer):
+    - Partitions the sequence into small chunks of size C (e.g. C=16 or 32).
+    - Within each chunk, keys K_c in R^{C x d} and values V_c in R^{C x d} define
+      an exact Ridge regression problem:
+        W_c^* = (K_c^T K_c + lambda * I)^{-1} K_c^T V_c in R^{d x d}
+      solved analytically in closed-form via batched torch.linalg.solve in parallel across all chunks.
+    - Causal inter-chunk recurrence: S_c = gamma * S_{c-1} + W_{c-1}^*
+    - Inter-chunk query readout: Y_{inter} = Q_c @ S_c
+    - Intra-chunk causal attention: Y_{intra} = CausalSoftmax(Q_c K_c^T / sqrt(d)) @ V_c
+    - Combined output: Y = Y_{inter} + Y_{intra}
+    """
+
+    def __init__(self, d_model: int, n_heads: int, chunk_size: int = 16, lambda_reg: float = 0.1):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_head = d_model // n_heads
+        self.chunk_size = chunk_size
+        self.lambda_reg = lambda_reg
+        self.scale = 1.0 / math.sqrt(self.d_head)
+
+        self.q_proj = nn.Linear(d_model, d_model, bias=False)
+        self.k_proj = nn.Linear(d_model, d_model, bias=False)
+        self.v_proj = nn.Linear(d_model, d_model, bias=False)
+        self.out_proj = nn.Linear(d_model, d_model, bias=False)
+
+        # Learnable inter-chunk discount factor gamma in (0, 1)
+        self.gamma_logit = nn.Parameter(torch.tensor([2.5]))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, C_dim = x.shape
+        H, d, C = self.n_heads, self.d_head, self.chunk_size
+
+        # Pad sequence length to multiple of C if necessary
+        pad_len = (C - (T % C)) % C
+        if pad_len > 0:
+            x_pad = torch.nn.functional.pad(x, (0, 0, 0, pad_len))
+        else:
+            x_pad = x
+        T_pad = x_pad.shape[1]
+        Nc = T_pad // C
+
+        q = self.q_proj(x_pad).view(B, T_pad, H, d).transpose(1, 2)  # (B, H, T_pad, d)
+        k = self.k_proj(x_pad).view(B, T_pad, H, d).transpose(1, 2)
+        v = self.v_proj(x_pad).view(B, T_pad, H, d).transpose(1, 2)
+
+        qc = q.view(B, H, Nc, C, d)
+        kc = k.view(B, H, Nc, C, d)
+        vc = v.view(B, H, Nc, C, d)
+
+        # 1. Closed-form Ridge solve for all chunks simultaneously
+        kc_flat = kc.reshape(B * H * Nc, C, d)
+        vc_flat = vc.reshape(B * H * Nc, C, d)
+
+        eye = torch.eye(d, device=x.device).unsqueeze(0)
+        G = torch.matmul(kc_flat.transpose(-1, -2), kc_flat) + self.lambda_reg * eye
+        rhs = torch.matmul(kc_flat.transpose(-1, -2), vc_flat)
+        W_all = torch.linalg.solve(G, rhs).view(B, H, Nc, d, d)
+
+        # 2. Inter-chunk causal recurrence
+        gamma = torch.sigmoid(self.gamma_logit)
+        S_list = [torch.zeros(B, H, d, d, device=x.device)]
+        for c in range(Nc - 1):
+            S_next = gamma * S_list[-1] + W_all[:, :, c, :, :]
+            S_list.append(S_next)
+        S = torch.stack(S_list, dim=2)  # (B, H, Nc, d, d)
+
+        # Inter-chunk readout
+        Y_inter = torch.einsum("bhncd,bhnde->bhnce", qc, S)
+
+        # 3. Intra-chunk causal attention
+        scores = torch.matmul(qc, kc.transpose(-1, -2)) * self.scale
+        causal_mask = torch.triu(torch.full((C, C), float("-inf"), device=x.device), diagonal=1)
+        scores = scores + causal_mask.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+        attn = torch.softmax(scores, dim=-1)
+        Y_intra = torch.matmul(attn, vc)
+
+        # 4. Total output
+        Y = (Y_inter + Y_intra).view(B, H, T_pad, d)
+        Y = Y.transpose(1, 2).contiguous().view(B, T_pad, C_dim)
+        if pad_len > 0:
+            Y = Y[:, :T, :]
+        return self.out_proj(Y)
+
+    def init_state(self, batch_size: int, device: torch.device) -> tuple[torch.Tensor, list, list]:
+        """Returns initial state for constant O(1) inference: (S, buffer_k, buffer_v)."""
+        S = torch.zeros(batch_size, self.n_heads, self.d_head, self.d_head, device=device)
+        return (S, [], [])
+
+    def step(self, x_t: torch.Tensor, state: tuple) -> tuple[torch.Tensor, tuple]:
+        """Single-token constant O(1) autoregressive generation step."""
+        S, buffer_k, buffer_v = state
+        B, C_dim = x_t.shape
+        q = self.q_proj(x_t).view(B, self.n_heads, self.d_head)
+        k = self.k_proj(x_t).view(B, self.n_heads, self.d_head)
+        v = self.v_proj(x_t).view(B, self.n_heads, self.d_head)
+
+        y_inter = torch.einsum("bhd,bhde->bhe", q, S)
+
+        buffer_k.append(k)
+        buffer_v.append(v)
+        K_buf = torch.stack(buffer_k, dim=2)  # (B, H, len_buf, d)
+        V_buf = torch.stack(buffer_v, dim=2)
+
+        scores = torch.einsum("bhd,bhcd->bhc", q, K_buf) * self.scale
+        attn = torch.softmax(scores, dim=-1)
+        y_intra = torch.einsum("bhc,bhcd->bhd", attn, V_buf)
+
+        y = y_inter + y_intra
+
+        if len(buffer_k) == self.chunk_size:
+            K_full = torch.stack(buffer_k, dim=2)
+            V_full = torch.stack(buffer_v, dim=2)
+            K_flat = K_full.reshape(B * self.n_heads, self.chunk_size, self.d_head)
+            V_flat = V_full.reshape(B * self.n_heads, self.chunk_size, self.d_head)
+
+            eye = torch.eye(self.d_head, device=x_t.device).unsqueeze(0)
+            G = torch.matmul(K_flat.transpose(-1, -2), K_flat) + self.lambda_reg * eye
+            rhs = torch.matmul(K_flat.transpose(-1, -2), V_flat)
+            W_chunk = torch.linalg.solve(G, rhs).view(B, self.n_heads, self.d_head, self.d_head)
+
+            gamma = torch.sigmoid(self.gamma_logit)
+            S = gamma * S + W_chunk
+            buffer_k = []
+            buffer_v = []
+
+        return self.out_proj(y.view(B, C_dim)), (S, buffer_k, buffer_v)
+
+
+class DiagonalKalmanAttention(nn.Module):
+    """
+    Diagonal Kalman Filter Attention (Preconditioned Delta-Net):
+    Maintains:
+    - S_t: Associative memory matrix in R^{d_k x d_v}
+    - p_t: Diagonal precision vector in R^{d_k}
+    Elementwise O(d) updates with learnable input-dependent write gate beta_t = sigmoid(W_beta x_t).
+    Combines pre-whitened Kalman precision with fast scalar gating.
+    """
+
+    def __init__(self, d_model: int, n_heads: int, lambda_decay: float = 0.99, delta_reg: float = 1.0):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_head = d_model // n_heads
+        self.lambda_decay = lambda_decay
+        self.delta_reg = delta_reg
+
+        self.q_proj = nn.Linear(d_model, d_model, bias=False)
+        self.k_proj = nn.Linear(d_model, d_model, bias=False)
+        self.v_proj = nn.Linear(d_model, d_model, bias=False)
+        self.out_proj = nn.Linear(d_model, d_model, bias=False)
+        self.beta_proj = nn.Linear(d_model, n_heads)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, C = x.shape
+        q = self.q_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
+        k = self.k_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
+        v = self.v_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
+        beta = torch.sigmoid(self.beta_proj(x)).view(B, T, self.n_heads).permute(0, 2, 1).unsqueeze(-1)
+
+        k = torch.nn.functional.normalize(k, p=2, dim=-1)
+
+        # Initialize State S_0 = 0 and diagonal precision p_0 = 1 / delta
+        S = torch.zeros(B, self.n_heads, self.d_head, self.d_head, device=x.device)
+        p = torch.ones(B, self.n_heads, self.d_head, device=x.device) / self.delta_reg
+
+        outputs = []
+        for t in range(T):
+            k_t = k[:, :, t, :]        # (B, H, d)
+            v_t = v[:, :, t, :]        # (B, H, d)
+            q_t = q[:, :, t, :]        # (B, H, d)
+            beta_t = beta[:, :, t, :]  # (B, H, 1)
+
+            # 1. Innovation error: e_t = v_t - S_{t-1}^T k_t
+            v_pred = torch.einsum("bhde,bhd->bhe", S, k_t)
+            e_t = v_t - v_pred
+
+            # 2. Diagonal Kalman gain: u_t = p_{t-1} * k_t
+            u_t = p * k_t
+            denom = self.lambda_decay + torch.sum(k_t * u_t, dim=-1, keepdim=True) + 1e-5
+            K_t = u_t / denom
+
+            # 3. Precision vector update: p_t = (p_{t-1} - K_t * k_t * p_{t-1}) / lambda
+            p = torch.clamp((p - K_t * k_t * p) / self.lambda_decay, min=1e-4, max=1e4)
+
+            # 4. Gated Memory update
+            delta_S = beta_t.unsqueeze(-1) * torch.einsum("bhd,bhe->bhde", K_t, e_t)
+            S = S + delta_S
+
+            # 5. Readout for query q_t
+            y_t = torch.einsum("bhde,bhd->bhe", S, q_t)
+            outputs.append(y_t)
+
+        out = torch.stack(outputs, dim=2)
+        out = out.transpose(1, 2).contiguous().view(B, T, C)
+        return self.out_proj(out)
+
+    def init_state(self, batch_size: int, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
+        """Returns initial (S, p) states for constant O(1) memory autoregressive inference."""
+        S = torch.zeros(batch_size, self.n_heads, self.d_head, self.d_head, device=device)
+        p = torch.ones(batch_size, self.n_heads, self.d_head, device=device) / self.delta_reg
+        return S, p
+
+    def step(
+        self, x_t: torch.Tensor, state: tuple[torch.Tensor, torch.Tensor]
+    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+        """Single-token constant O(1) autoregressive generation step."""
+        S, p = state
+        B, C = x_t.shape
+        q = self.q_proj(x_t).view(B, self.n_heads, self.d_head)
+        k = torch.nn.functional.normalize(self.k_proj(x_t).view(B, self.n_heads, self.d_head), p=2, dim=-1)
+        v = self.v_proj(x_t).view(B, self.n_heads, self.d_head)
+        beta = torch.sigmoid(self.beta_proj(x_t)).view(B, self.n_heads, 1)
+
+        v_pred = torch.einsum("bhde,bhd->bhe", S, k)
+        e_t = v - v_pred
+        u_t = p * k
+        denom = self.lambda_decay + torch.sum(k * u_t, dim=-1, keepdim=True) + 1e-5
+        K_t = u_t / denom
+
+        p_new = torch.clamp((p - K_t * k * p) / self.lambda_decay, min=1e-4, max=1e4)
+        S_new = S + beta.unsqueeze(-1) * torch.einsum("bhd,bhe->bhde", K_t, e_t)
+        y = torch.einsum("bhde,bhd->bhe", S_new, q).view(B, C)
+        return self.out_proj(y), (S_new, p_new)
+
+
+class ChunkwisePolySolvableAttention(nn.Module):
+    """
+    Chunkwise Degree-2 Polynomial Solvable Attention:
+    Expands chunk keys with degree-2 polynomial cross-features:
+      phi_2(x) = [x, x^2, x_j * x_k (j < k)]
+    and computes exact closed-form Ridge solve per chunk in parallel.
+    Bridges non-linear interactive expressivity with closed-form solvability.
+    """
+
+    def __init__(self, d_model: int, n_heads: int, chunk_size: int = 16, lambda_reg: float = 0.5):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_head = d_model // n_heads
+        self.chunk_size = chunk_size
+        self.lambda_reg = lambda_reg
+
+        # Degree-2 cross-feature dimension: d linear + d squared + d*(d-1)/2 cross
+        self.d_poly = self.d_head + self.d_head + (self.d_head * (self.d_head - 1)) // 2
+        self.scale = 1.0 / math.sqrt(self.d_poly)
+
+        self.q_proj = nn.Linear(d_model, d_model, bias=False)
+        self.k_proj = nn.Linear(d_model, d_model, bias=False)
+        self.v_proj = nn.Linear(d_model, d_model, bias=False)
+        self.out_proj = nn.Linear(d_model, d_model, bias=False)
+
+        self.gamma_logit = nn.Parameter(torch.tensor([2.5]))
+
+    def compute_poly2_features(self, x: torch.Tensor) -> torch.Tensor:
+        """x: (..., d) -> returns (..., d_poly)"""
+        d = x.shape[-1]
+        feats = [x, x ** 2]
+        cross = []
+        for i in range(d):
+            for j in range(i + 1, d):
+                cross.append(x[..., i : i + 1] * x[..., j : j + 1])
+        feats.append(torch.cat(cross, dim=-1))
+        return torch.cat(feats, dim=-1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, C_dim = x.shape
+        H, d, C = self.n_heads, self.d_head, self.chunk_size
+
+        pad_len = (C - (T % C)) % C
+        if pad_len > 0:
+            x_pad = torch.nn.functional.pad(x, (0, 0, 0, pad_len))
+        else:
+            x_pad = x
+        T_pad = x_pad.shape[1]
+        Nc = T_pad // C
+
+        q = self.q_proj(x_pad).view(B, T_pad, H, d).transpose(1, 2)
+        k = self.k_proj(x_pad).view(B, T_pad, H, d).transpose(1, 2)
+        v = self.v_proj(x_pad).view(B, T_pad, H, d).transpose(1, 2)
+
+        qc = q.view(B, H, Nc, C, d)
+        kc = k.view(B, H, Nc, C, d)
+        vc = v.view(B, H, Nc, C, d)
+
+        # Expand polynomial features: (B, H, Nc, C, d_poly)
+        phi_k = self.compute_poly2_features(kc)
+        phi_q = self.compute_poly2_features(qc)
+        dp = self.d_poly
+
+        # 1. Closed-form Dual Ridge solve in polynomial feature space (C x C system)
+        phi_k_flat = phi_k.reshape(B * H * Nc, C, dp)
+        vc_flat = vc.reshape(B * H * Nc, C, d)
+
+        eye = torch.eye(C, device=x.device).unsqueeze(0)
+        G_dual = torch.matmul(phi_k_flat, phi_k_flat.transpose(-1, -2)) + self.lambda_reg * eye
+        alpha = torch.linalg.solve(G_dual, vc_flat)
+        W_all = torch.matmul(phi_k_flat.transpose(-1, -2), alpha).view(B, H, Nc, dp, d)
+
+        # 2. Inter-chunk causal recurrence
+        gamma = torch.sigmoid(self.gamma_logit)
+        S_list = [torch.zeros(B, H, dp, d, device=x.device)]
+        for c in range(Nc - 1):
+            S_next = gamma * S_list[-1] + W_all[:, :, c, :, :]
+            S_list.append(S_next)
+        S = torch.stack(S_list, dim=2)
+
+        # Inter-chunk readout: phi_q @ S
+        Y_inter = torch.einsum("bhncp,bhnpd->bhncd", phi_q, S)
+
+        # 3. Intra-chunk causal attention with polynomial features
+        scores = torch.matmul(phi_q, phi_k.transpose(-1, -2)) * self.scale
+        causal_mask = torch.triu(torch.full((C, C), float("-inf"), device=x.device), diagonal=1)
+        scores = scores + causal_mask.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+        attn = torch.softmax(scores, dim=-1)
+        Y_intra = torch.matmul(attn, vc)
+
+        # 4. Total output
+        Y = (Y_inter + Y_intra).view(B, H, T_pad, d)
+        Y = Y.transpose(1, 2).contiguous().view(B, T_pad, C_dim)
+        if pad_len > 0:
+            Y = Y[:, :T, :]
+        return self.out_proj(Y)
+
+    def init_state(self, batch_size: int, device: torch.device) -> tuple[torch.Tensor, list, list]:
+        """Returns initial state for constant O(1) inference: (S, buffer_k, buffer_v)."""
+        S = torch.zeros(batch_size, self.n_heads, self.d_poly, self.d_head, device=device)
+        return (S, [], [])
+
+    def step(self, x_t: torch.Tensor, state: tuple) -> tuple[torch.Tensor, tuple]:
+        """Single-token constant O(1) autoregressive generation step."""
+        S, buffer_k, buffer_v = state
+        B, C_dim = x_t.shape
+        q = self.q_proj(x_t).view(B, self.n_heads, self.d_head)
+        k = self.k_proj(x_t).view(B, self.n_heads, self.d_head)
+        v = self.v_proj(x_t).view(B, self.n_heads, self.d_head)
+
+        phi_q = self.compute_poly2_features(q)
+        phi_k = self.compute_poly2_features(k)
+
+        y_inter = torch.einsum("bhp,bhpd->bhd", phi_q, S)
+
+        buffer_k.append(phi_k)
+        buffer_v.append(v)
+        K_buf = torch.stack(buffer_k, dim=2)
+        V_buf = torch.stack(buffer_v, dim=2)
+
+        scores = torch.einsum("bhp,bhcp->bhc", phi_q, K_buf) * self.scale
+        attn = torch.softmax(scores, dim=-1)
+        y_intra = torch.einsum("bhc,bhcd->bhd", attn, V_buf)
+
+        y = y_inter + y_intra
+
+        if len(buffer_k) == self.chunk_size:
+            K_full = torch.stack(buffer_k, dim=2)
+            V_full = torch.stack(buffer_v, dim=2)
+            K_flat = K_full.reshape(B * self.n_heads, self.chunk_size, self.d_poly)
+            V_flat = V_full.reshape(B * self.n_heads, self.chunk_size, self.d_head)
+
+            eye = torch.eye(self.chunk_size, device=x_t.device).unsqueeze(0)
+            G_dual = torch.matmul(K_flat, K_flat.transpose(-1, -2)) + self.lambda_reg * eye
+            alpha = torch.linalg.solve(G_dual, V_flat)
+            W_chunk = torch.matmul(K_flat.transpose(-1, -2), alpha).view(B, self.n_heads, self.d_poly, self.d_head)
+
+            gamma = torch.sigmoid(self.gamma_logit)
+            S = gamma * S + W_chunk
+            buffer_k = []
+            buffer_v = []
+
+        return self.out_proj(y.view(B, C_dim)), (S, buffer_k, buffer_v)
+
+
 class SequenceTransformer(nn.Module):
     """
     Autoregressive Sequence Transformer backbone supporting:
@@ -549,6 +923,9 @@ class SequenceTransformer(nn.Module):
     - attn_type="delta": Delta-Rule / LMS Attention (Innovation with scalar gain)
     - attn_type="rls": Causal RLS / Kalman Filter Attention (Optimal innovation with matrix gain)
     - attn_type="two_stream": Two-Stream Bulk + Margin Attention
+    - attn_type="chunk_ridge": Chunkwise Closed-Form Ridge Attention (Micro-solver)
+    - attn_type="diag_kalman": Diagonal Kalman Attention (Preconditioned Delta-Net)
+    - attn_type="chunk_poly": Chunkwise Degree-2 Polynomial Solvable Attention
     """
 
     def __init__(
@@ -582,6 +959,12 @@ class SequenceTransformer(nn.Module):
                 attn = CausalRLSAttention(d_model, n_heads)
             elif attn_type == "two_stream":
                 attn = TwoStreamBulkMarginAttention(d_model, n_heads)
+            elif attn_type == "chunk_ridge":
+                attn = ChunkwiseRidgeAttention(d_model, n_heads)
+            elif attn_type == "diag_kalman":
+                attn = DiagonalKalmanAttention(d_model, n_heads)
+            elif attn_type == "chunk_poly":
+                attn = ChunkwisePolySolvableAttention(d_model, n_heads)
             else:
                 raise ValueError(f"Unknown attn_type: {attn_type}")
 

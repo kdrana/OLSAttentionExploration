@@ -43,11 +43,25 @@ This roadmap outlines the long-term vision, active implementations, and future r
   - Evaluated constant $O(1)$ memory flatline ($0.0078\text{ MB}$ vs $4.0\text{ MB}$ at $T=4096$, a $512\times$ reduction) during continuous autoregressive generation.
 - [x] **Cloud Deployment:** Executed on Modal NVIDIA T4 GPU, artifacts logged in `results/exp04_kalman_rls_attention/` and `EXPERIMENTS.md`.
 
-### Phase 4: Hierarchical Solvable Networks for Large-Scale Tabular Data (`EXP-05`)
+### Phase 4: Solvable Attention Architectures Suite (`EXP-05`)
+- [x] **Chunkwise Closed-Form Ridge Attention (`chunk_ridge`):**
+  - Solves intra-chunk linear regression in closed form across all chunks in parallel on GPU tensor cores.
+  - Achieves **$37.5\times$ training speedup** over Causal RLS ($1.50\text{ s}$ vs $56.23\text{ s}$) while maintaining $14.58\%$ MQAR recall accuracy.
+- [x] **Diagonal Kalman Attention (`diag_kalman`):**
+  - Formulated $O(d)$ diagonal precision tracking combined with learnable input-dependent write gating.
+  - Achieves strictly constant $0.0083\text{ MB}$ memory footprint ($482\times$ smaller than KV-cache at $T=4096$).
+- [x] **Chunkwise Degree-2 Polynomial Solvable Attention (`chunk_poly`):**
+  - Formulated pairwise degree-2 polynomial expansion resolved via exact closed-form Dual Ridge regression ($C \times C = 16 \times 16$ system).
+  - Matches Delta-Net accuracy (**$20.83\%$**, peak **$21.35\%$**) while training **$4.5\times$ faster** ($6.73\text{ s}$ vs $30.57\text{ s}$) and **$8.4\times$ faster** than RLS ($56.23\text{ s}$).
+- [x] **Cloud Benchmark & Artifact Logging:**
+  - Evaluated 7 architectures on Modal NVIDIA T4 GPU; synced metrics and 4 publication-ready figures to `results/exp05_solvable_attention_suite/` and logged in `EXPERIMENTS.md`.
+
+### Phase 5: Hierarchical Solvable Networks for Large-Scale Tabular Data (`EXP-06`)
 - [ ] **Deep Solvable Blocks:** Stack multiple solvable blocks hierarchically (expanding degree-2 on already solved features to capture degree-4 interactions without combinatorial explosion).
 - [ ] **Benchmark vs Gradient Boosted Decision Trees:** Evaluate against XGBoost, LightGBM, and CatBoost on large tabular benchmarks (Covertype, Higgs, Adult).
 
-### Phase 5: Academic Publication & Preprint Packaging
+### Phase 6: Academic Publication & Preprint Packaging
 - [ ] **LaTeX Preprint Finalization:** Convert `paper/manuscript.md` into formal NeurIPS/ICLR-styled `paper/main.tex`.
-- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from Phase 2 (Two-Stream Sequence Layer).
+- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from Sequence, Kalman, and Solvable Suite benchmarks.
 - [ ] **Overleaf / arXiv Bundle:** Generate a self-contained archive for arXiv submission.
+
