@@ -1,0 +1,195 @@
+{
+  "model_id": "Qwen/Qwen3.5-0.8B-Base",
+  "total_parameters": 752393024,
+  "trainable_parameters": 113737728,
+  "full_attention_layers": [
+    3,
+    7,
+    11,
+    15,
+    19,
+    23
+  ],
+  "distill_steps": 350,
+  "train_time_s": 114.74242815099998,
+  "baseline_softmax": {
+    "val_loss": 2.140625,
+    "val_ppl": 8.504751437796486,
+    "completions": [
+      {
+        "prompt": "Once upon a time, there was a little bird named Pip who lived in a",
+        "completion": "Once upon a time, there was a little bird named Pip who lived in a very special place called the Bird House. Pip was a very curious and smart little bird.  One day, Pip went to the Bird House and saw something really interesting. There was a big tree outside. Pip thought, \"Oh, I"
+      },
+      {
+        "prompt": "The sun is a star located at the center of the Solar System. It is composed primarily of",
+        "completion": "The sun is a star located at the center of the Solar System. It is composed primarily of hydrogen and helium, with trace amounts of heavier elements. The Sun is a massive, luminous ball of plasma, and it is the only star in the Solar System. The Sun is the center of the Solar System, and it is the"
+      },
+      {
+        "prompt": "To solve the mystery of the missing key, the young detective decided to",
+        "completion": "To solve the mystery of the missing key, the young detective decided to follow a series of clues that led him from a simple observation to a logical conclusion.  First, the detective noticed that the key was missing from the lock. He asked himself, \u201cWhat would happen if I tried to open the lock with"
+      },
+      {
+        "prompt": "A computer program is a sequence of instructions written in a programming language to",
+        "completion": "A computer program is a sequence of instructions written in a programming language to perform a specific task. It is a set of rules that tell the computer what to do. The program can be written in various programming languages, such as C, Python, or Java.  A program can be used to solve a problem"
+      }
+    ],
+    "scaling": [
+      {
+        "T": 512,
+        "prefill_ms": 83.26915199999974,
+        "decode_tok_s": 32.35005888731769,
+        "peak_vram_mb": 2310.02197265625,
+        "attn_cache_kb": 6144.0
+      },
+      {
+        "T": 1024,
+        "prefill_ms": 116.28361100000006,
+        "decode_tok_s": 32.41467648302187,
+        "peak_vram_mb": 2827.8701171875,
+        "attn_cache_kb": 12288.0
+      },
+      {
+        "T": 2048,
+        "prefill_ms": 196.62977699999828,
+        "decode_tok_s": 32.674246705937826,
+        "peak_vram_mb": 3575.3740234375,
+        "attn_cache_kb": 24576.0
+      },
+      {
+        "T": 4096,
+        "prefill_ms": 395.2007350000031,
+        "decode_tok_s": 32.77670012141793,
+        "peak_vram_mb": 5069.3818359375,
+        "attn_cache_kb": 49152.0
+      },
+      {
+        "T": 8192,
+        "prefill_ms": 795.550986000002,
+        "decode_tok_s": 34.365088189031795,
+        "peak_vram_mb": 8059.3974609375,
+        "attn_cache_kb": 98304.0
+      }
+    ]
+  },
+  "linearized_flash_ols": {
+    "val_loss": 2.298958333333333,
+    "val_ppl": 9.963798090886147,
+    "completions": [
+      {
+        "prompt": "Once upon a time, there was a little bird named Pip who lived in a",
+        "completion": "Once upon a time, there was a little bird named Pip who lived in a big tree. Pip loved to play and have fun. One day, Pip saw a big tree and he wanted to play on it. But as soon as Pip got closer, he saw a big tree. The tree had a hole in it"
+      },
+      {
+        "prompt": "The sun is a star located at the center of the Solar System. It is composed primarily of",
+        "completion": "The sun is a star located at the center of the Solar System. It is composed primarily of stars and a tiny bird. The bird was very happy and wanted to fly around the house. The bird flew around the house, singing happy songs. It was the most popular song in the world. The bird sang a song and"
+      },
+      {
+        "prompt": "To solve the mystery of the missing key, the young detective decided to",
+        "completion": "To solve the mystery of the missing key, the young detective decided to solve the mystery by solving the mystery of the key. "
+      },
+      {
+        "prompt": "A computer program is a sequence of instructions written in a programming language to",
+        "completion": "A computer program is a sequence of instructions written in a programming language to help people move things around. One day, a little girl named Lily found a big box of old books on the ground. She was so excited to open them, and she opened them. Inside, there were even more books than before"
+      }
+    ],
+    "scaling": [
+      {
+        "T": 512,
+        "prefill_ms": 89.39651699998308,
+        "decode_tok_s": 87.13465290958696,
+        "peak_vram_mb": 3860.9267578125,
+        "attn_cache_kb": 204.0
+      },
+      {
+        "T": 1024,
+        "prefill_ms": 130.73259300000473,
+        "decode_tok_s": 919.1739073872018,
+        "peak_vram_mb": 4461.77490234375,
+        "attn_cache_kb": 204.0
+      },
+      {
+        "T": 2048,
+        "prefill_ms": 229.3810980000046,
+        "decode_tok_s": 283.0491505119981,
+        "peak_vram_mb": 5383.27880859375,
+        "attn_cache_kb": 204.0
+      },
+      {
+        "T": 4096,
+        "prefill_ms": 457.35635900001625,
+        "decode_tok_s": 466.51175269216486,
+        "peak_vram_mb": 7226.28662109375,
+        "attn_cache_kb": 204.0
+      },
+      {
+        "T": 8192,
+        "prefill_ms": 906.8112320000239,
+        "decode_tok_s": 892.8748060340688,
+        "peak_vram_mb": 10912.30224609375,
+        "attn_cache_kb": 204.0
+      }
+    ]
+  },
+  "extrapolation": [
+    {
+      "context_length": 512,
+      "softmax_kv_cache_mb": 6.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 30.11764705882353
+    },
+    {
+      "context_length": 1024,
+      "softmax_kv_cache_mb": 12.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 60.23529411764706
+    },
+    {
+      "context_length": 2048,
+      "softmax_kv_cache_mb": 24.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 120.47058823529412
+    },
+    {
+      "context_length": 4096,
+      "softmax_kv_cache_mb": 48.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 240.94117647058823
+    },
+    {
+      "context_length": 8192,
+      "softmax_kv_cache_mb": 96.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 481.88235294117646
+    },
+    {
+      "context_length": 16384,
+      "softmax_kv_cache_mb": 192.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 963.7647058823529
+    },
+    {
+      "context_length": 32768,
+      "softmax_kv_cache_mb": 384.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 1927.5294117647059
+    },
+    {
+      "context_length": 65536,
+      "softmax_kv_cache_mb": 768.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 3855.0588235294117
+    },
+    {
+      "context_length": 131072,
+      "softmax_kv_cache_mb": 1536.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 7710.117647058823
+    },
+    {
+      "context_length": 262144,
+      "softmax_kv_cache_mb": 3072.0,
+      "flash_ols_state_kb": 204.0,
+      "compression_ratio": 15420.235294117647
+    }
+  ]
+}

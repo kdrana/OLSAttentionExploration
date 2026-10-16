@@ -167,3 +167,96 @@ class QwenFlashOLSAttention(nn.Module):
         attn_output = self.orig_attn.o_proj(attn_output)
 
         return attn_output, None
+
+
+def get_ols_adapter_state(model: nn.Module) -> dict:
+    """
+    Extracts the lightweight Flash-OLS adapter parameters across all linearized layers.
+    Total size is ~1.96 MB (under 500k parameters).
+    """
+    state = {}
+    for idx, layer in enumerate(model.model.layers):
+        if hasattr(layer, "self_attn") and isinstance(layer.self_attn, QwenFlashOLSAttention):
+            state[f"layer_{idx}.proj_k"] = layer.self_attn.proj_k.data.cpu()
+            state[f"layer_{idx}.proj_q"] = layer.self_attn.proj_q.data.cpu()
+            state[f"layer_{idx}.gamma"] = float(layer.self_attn.gamma)
+            state[f"layer_{idx}.lambda_reg"] = float(layer.self_attn.lambda_reg)
+            state[f"layer_{idx}.rank"] = int(layer.self_attn.rank)
+    return state
+
+
+def save_ols_adapter(model: nn.Module, save_path: str):
+    """
+    Saves the lightweight Flash-OLS adapter dictionary to disk.
+    """
+    state = get_ols_adapter_state(model)
+    torch.save(state, save_path)
+    print(f"Saved Flash-OLS adapter ({len(state)} keys) to {save_path}")
+
+
+def reset_ols_states(model: nn.Module):
+    """
+    Resets autoregressive generation states across all Flash-OLS layers.
+    Call this before each new prompt generation.
+    """
+    for layer in model.model.layers:
+        if hasattr(layer, "self_attn") and isinstance(layer.self_attn, QwenFlashOLSAttention):
+            layer.self_attn.reset_generation_state()
+
+
+def apply_ols_adapter(
+    model: nn.Module,
+    adapter_source: str | dict | None = None,
+    rank: int = 16,
+    lambda_reg: float = 0.05,
+    gamma: float = 0.99,
+    device: str | torch.device | None = None,
+) -> list[int]:
+    """
+    Replaces the 6 Full Attention layers of Qwen3.5 with QwenFlashOLSAttention.
+    If adapter_source is provided (filepath or dict), loads the pre-trained weights.
+    Returns the list of modified layer indices.
+    """
+    full_attn_indices = []
+    
+    if isinstance(adapter_source, str):
+        state = torch.load(adapter_source, map_location="cpu")
+    elif isinstance(adapter_source, dict):
+        state = adapter_source
+    else:
+        state = None
+
+    for idx, layer in enumerate(model.model.layers):
+        if hasattr(layer, "self_attn") and layer.self_attn is not None:
+            full_attn_indices.append(idx)
+            
+            # If not already wrapped, wrap it
+            if not isinstance(layer.self_attn, QwenFlashOLSAttention):
+                target_rank = rank
+                target_lambda = lambda_reg
+                target_gamma = gamma
+
+                if state is not None and f"layer_{idx}.rank" in state:
+                    target_rank = int(state[f"layer_{idx}.rank"])
+                    target_lambda = float(state[f"layer_{idx}.lambda_reg"])
+                    target_gamma = float(state[f"layer_{idx}.gamma"])
+
+                ols_attn = QwenFlashOLSAttention(
+                    layer.self_attn,
+                    rank=target_rank,
+                    lambda_reg=target_lambda,
+                    gamma=target_gamma
+                )
+                if device is not None:
+                    ols_attn = ols_attn.to(device)
+                layer.self_attn = ols_attn
+
+            # Load weights if available
+            if state is not None and f"layer_{idx}.proj_k" in state:
+                dev = layer.self_attn.proj_k.device
+                dtype = layer.self_attn.proj_k.dtype
+                layer.self_attn.proj_k.data.copy_(state[f"layer_{idx}.proj_k"].to(device=dev, dtype=dtype))
+                layer.self_attn.proj_q.data.copy_(state[f"layer_{idx}.proj_q"].to(device=dev, dtype=dtype))
+
+    return full_attn_indices
+
