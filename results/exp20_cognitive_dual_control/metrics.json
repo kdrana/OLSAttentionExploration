@@ -1,0 +1,237 @@
+{
+  "experiment_id": "EXP-20-COGNITIVE-DUAL-CONTROL",
+  "model_id": "Qwen/Qwen3.5-0.8B-Base",
+  "window_size": 1024,
+  "rank": 16,
+  "fit_time_s": 21.614821991,
+  "academic_benchmarks": {
+    "mmlu_arc_pct": {
+      "original_softmax": 100.0,
+      "pure_flash_ols": 20.0,
+      "cdca_hybrid": 100.0
+    },
+    "gsm8k_math_pct": {
+      "original_softmax": 0.0,
+      "pure_flash_ols": 0.0,
+      "cdca_hybrid": 0.0
+    },
+    "humaneval_coding": {
+      "syntax_valid_pct": {
+        "original_softmax": 0.0,
+        "pure_flash_ols": 40.0,
+        "cdca_hybrid": 0.0
+      },
+      "tests_passed_pct": {
+        "reported_qwen_baseline": 35.4,
+        "original_softmax": 0.0,
+        "pure_flash_ols": 40.0,
+        "cdca_hybrid": 0.0
+      }
+    }
+  },
+  "niah_stress_test": {
+    "total_trials": 18,
+    "total_success": 6,
+    "success_rate_pct": 33.33333333333333,
+    "trials": [
+      {
+        "target_len": 1024,
+        "actual_len": 1024,
+        "depth": 0.1,
+        "success": true,
+        "oom": false,
+        "vram_mb": 1622.73388671875,
+        "gen_time_s": 1.0879870700000112,
+        "gen_text": "74921.\nQuestion: What is the artificial name of",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 1024,
+        "actual_len": 1024,
+        "depth": 0.5,
+        "success": true,
+        "oom": false,
+        "vram_mb": 1622.73388671875,
+        "gen_time_s": 0.8252989639999981,
+        "gen_text": "74921.\nQuestion: What is the artificial name of",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 1024,
+        "actual_len": 1024,
+        "depth": 0.9,
+        "success": true,
+        "oom": false,
+        "vram_mb": 1622.73388671875,
+        "gen_time_s": 0.8242329189999964,
+        "gen_text": "74921.\nQuestion: What is the artificial name of",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 2048,
+        "actual_len": 2048,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 1747.35205078125,
+        "gen_time_s": 0.9447432789999937,
+        "gen_text": "100.\nQuestion: What is the secret operational access code for",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 2048,
+        "actual_len": 2048,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 1747.35205078125,
+        "gen_time_s": 0.9326384539999992,
+        "gen_text": "100000000000000",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 2048,
+        "actual_len": 2048,
+        "depth": 0.9,
+        "success": true,
+        "oom": false,
+        "vram_mb": 1747.35205078125,
+        "gen_time_s": 0.9314338440000114,
+        "gen_text": "74921.\nQuestion: What is the secret operational access",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 4096,
+        "actual_len": 4096,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 1996.58837890625,
+        "gen_time_s": 1.1374378869999902,
+        "gen_text": "1.\nQuestion: What is the secret operational access code for Project Ant",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 4096,
+        "actual_len": 4096,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 1996.58837890625,
+        "gen_time_s": 1.1354880410000021,
+        "gen_text": "1.\nQuestion: What is the secret operational access code for Project Ant",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 4096,
+        "actual_len": 4096,
+        "depth": 0.9,
+        "success": true,
+        "oom": false,
+        "vram_mb": 1996.58837890625,
+        "gen_time_s": 1.1337238200000002,
+        "gen_text": "74921.\nQuestion: What is the secret operational access",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 8192,
+        "actual_len": 8192,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 2494.18603515625,
+        "gen_time_s": 1.5466726800000004,
+        "gen_text": "100000000000000",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 8192,
+        "actual_len": 8192,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 2494.18603515625,
+        "gen_time_s": 1.5502210229999918,
+        "gen_text": "100000000000000",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 8192,
+        "actual_len": 8192,
+        "depth": 0.9,
+        "success": true,
+        "oom": false,
+        "vram_mb": 2494.18603515625,
+        "gen_time_s": 1.5436348740000057,
+        "gen_text": "74921.\nQuestion: What is the secret operational access",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 16384,
+        "actual_len": 16384,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 3491.13134765625,
+        "gen_time_s": 2.5485785460000017,
+        "gen_text": "100000000000000",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 16384,
+        "actual_len": 16384,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 3491.13134765625,
+        "gen_time_s": 2.5665445129999966,
+        "gen_text": "100000000000000",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 16384,
+        "actual_len": 16384,
+        "depth": 0.9,
+        "success": false,
+        "oom": false,
+        "vram_mb": 3491.13134765625,
+        "gen_time_s": 2.562623981999991,
+        "gen_text": "100000000000000",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 32768,
+        "actual_len": 32768,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 5486.86572265625,
+        "gen_time_s": 5.2076765280000075,
+        "gen_text": "a state of the 1990s. The state of the",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 32768,
+        "actual_len": 32768,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 5486.86572265625,
+        "gen_time_s": 5.211200769000001,
+        "gen_text": "a state of the state. The state is a state of the state. The",
+        "attn_state_kb": 12528.0
+      },
+      {
+        "target_len": 32768,
+        "actual_len": 32768,
+        "depth": 0.9,
+        "success": false,
+        "oom": false,
+        "vram_mb": 5486.86572265625,
+        "gen_time_s": 5.210340731000002,
+        "gen_text": "a state of the state. The state is a state of the state. The",
+        "attn_state_kb": 12528.0
+      }
+    ]
+  }
+}

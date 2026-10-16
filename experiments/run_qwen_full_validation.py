@@ -48,7 +48,7 @@ FULL_ATTN_LAYERS = [3, 7, 11, 15, 19, 23]
 # 1. Multi-Layer Direct Operator Fitting
 # ==============================================================================
 
-def fit_all_attention_layers(model: nn.Module, tokenizer: AutoTokenizer, device: str, steps_per_layer: int = 500) -> dict:
+def fit_all_attention_layers(model: nn.Module, tokenizer: AutoTokenizer, device: str, steps_per_layer: int = 500, rank: int = 16) -> dict:
     """
     Fits Direct Operator Estimation across all 6 full-attention layers in Qwen3.5.
     Returns complete state dict for all 6 layers (~1.88 MB).
@@ -115,7 +115,7 @@ def fit_all_attention_layers(model: nn.Module, tokenizer: AutoTokenizer, device:
         orig_attn.forward = orig_forward
 
         # Fit isolated operator on this layer
-        operator = DirectOperatorFitter(head_dim=256, num_heads=8, num_kv_heads=2, rank=16).to(device)
+        operator = DirectOperatorFitter(head_dim=256, num_heads=8, num_kv_heads=2, rank=rank).to(device)
         optimizer = torch.optim.AdamW(operator.parameters(), lr=2e-3, weight_decay=1e-4)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=steps_per_layer, eta_min=1e-4)
 
