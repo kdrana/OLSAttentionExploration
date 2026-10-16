@@ -915,6 +915,114 @@ class ChunkwisePolySolvableAttention(nn.Module):
         return self.out_proj(y.view(B, C_dim)), (S, buffer_k, buffer_v)
 
 
+class ExactCausalOLSAttention(nn.Module):
+    """
+    Exact Causal Online Least Squares (OLS) Attention:
+    Solves the continuous causal regularized regression problem:
+      min_{W_t} sum_{tau=1}^t gamma^{t-tau} || phi(k_tau)^T W_t - v_tau^T ||_2^2 + lambda ||W_t||_F^2
+    Analytic solution for all tokens t in parallel:
+      G_t = sum_{tau=1}^t gamma^{t-tau} phi(k_tau) phi(k_tau)^T + lambda * I in R^{d_feat x d_feat}
+      R_t = sum_{tau=1}^t gamma^{t-tau} phi(k_tau) v_tau^T in R^{d_feat x d_head}
+      W_t^* = G_t^{-1} R_t
+      y_t = phi(q_t)^T W_t^*
+    All T linear systems are solved simultaneously in a single batched torch.linalg.solve.
+    """
+
+    def __init__(self, d_model: int, n_heads: int, lambda_reg: float = 0.1, gamma: float = 1.0, use_poly: bool = False):
+        super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_head = d_model // n_heads
+        self.lambda_reg = lambda_reg
+        self.gamma = gamma
+        self.use_poly = use_poly
+        self.d_feat = self.d_head * 2 if use_poly else self.d_head
+
+        self.q_proj = nn.Linear(d_model, d_model, bias=False)
+        self.k_proj = nn.Linear(d_model, d_model, bias=False)
+        self.v_proj = nn.Linear(d_model, d_model, bias=False)
+        self.out_proj = nn.Linear(d_model, d_model, bias=False)
+
+    def feature_map(self, x: torch.Tensor) -> torch.Tensor:
+        if self.use_poly:
+            return torch.cat([x, x ** 2], dim=-1)
+        return x
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, C = x.shape
+        H = self.n_heads
+        q = self.q_proj(x).view(B, T, H, self.d_head).transpose(1, 2)
+        k = self.k_proj(x).view(B, T, H, self.d_head).transpose(1, 2)
+        v = self.v_proj(x).view(B, T, H, self.d_head).transpose(1, 2)
+
+        phi_q = self.feature_map(q)
+        phi_k = self.feature_map(k)
+        df = self.d_feat
+
+        # Outer products
+        K_outer = torch.einsum("bhtd,bhte->bhtde", phi_k, phi_k)
+        KV_outer = torch.einsum("bhtd,bhte->bhtde", phi_k, v)
+
+        if self.gamma < 1.0:
+            powers = torch.arange(T, device=x.device, dtype=x.dtype)
+            scale_down = (self.gamma ** (-powers)).view(1, 1, T, 1, 1)
+            scale_up = (self.gamma ** powers).view(1, 1, T, 1, 1)
+            G = scale_up * torch.cumsum(K_outer * scale_down, dim=2)
+            R = scale_up * torch.cumsum(KV_outer * scale_down, dim=2)
+        else:
+            G = torch.cumsum(K_outer, dim=2)
+            R = torch.cumsum(KV_outer, dim=2)
+
+        eye = torch.eye(df, device=x.device).unsqueeze(0).unsqueeze(0).unsqueeze(0)
+        G = G + self.lambda_reg * eye
+
+        # Flatten to 3D for cuBLAS/cuSOLVER batched kernel compatibility on CUDA
+        # G is strictly symmetric positive-definite (G = sum k k^T + lambda I), so Cholesky solve
+        # is mathematically optimal, 2x faster than LU, and natively supported across all GPUs.
+        G_flat = G.reshape(B * H * T, df, df)
+        R_flat = R.reshape(B * H * T, df, self.d_head)
+        L = torch.linalg.cholesky(G_flat)
+        W_flat = torch.cholesky_solve(R_flat, L)
+        W = W_flat.view(B, H, T, df, self.d_head)
+        y = torch.einsum("bhtd,bhtde->bhte", phi_q, W)  # (B, H, T, d_head)
+
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        return self.out_proj(y)
+
+    def init_state(self, batch_size: int, device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
+        """Returns initial state (G, R) for constant O(1) inference."""
+        eye = torch.eye(self.d_feat, device=device).unsqueeze(0).unsqueeze(0)
+        G = self.lambda_reg * eye.repeat(batch_size, self.n_heads, 1, 1)
+        R = torch.zeros(batch_size, self.n_heads, self.d_feat, self.d_head, device=device)
+        return G, R
+
+    def step(
+        self, x_t: torch.Tensor, state: tuple[torch.Tensor, torch.Tensor]
+    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+        """Single-token constant O(1) autoregressive generation step."""
+        G, R = state
+        B, C = x_t.shape
+        q = self.q_proj(x_t).view(B, self.n_heads, self.d_head)
+        k = self.k_proj(x_t).view(B, self.n_heads, self.d_head)
+        v = self.v_proj(x_t).view(B, self.n_heads, self.d_head)
+
+        phi_q = self.feature_map(q)
+        phi_k = self.feature_map(k)
+
+        # Update running Gram and cross-covariance matrices
+        new_G = self.gamma * G + torch.einsum("bhd,bhe->bhde", phi_k, phi_k)
+        new_R = self.gamma * R + torch.einsum("bhd,bhe->bhde", phi_k, v)
+
+        # Solve system via 3D cuBLAS layout using Cholesky
+        new_G_flat = new_G.reshape(B * self.n_heads, self.d_feat, self.d_feat)
+        new_R_flat = new_R.reshape(B * self.n_heads, self.d_feat, self.d_head)
+        L = torch.linalg.cholesky(new_G_flat)
+        W_flat = torch.cholesky_solve(new_R_flat, L)
+        W = W_flat.view(B, self.n_heads, self.d_feat, self.d_head)
+        y = torch.einsum("bhd,bhde->bhe", phi_q, W).view(B, C)
+        return self.out_proj(y), (new_G, new_R)
+
+
 class SequenceTransformer(nn.Module):
     """
     Autoregressive Sequence Transformer backbone supporting:
@@ -926,6 +1034,8 @@ class SequenceTransformer(nn.Module):
     - attn_type="chunk_ridge": Chunkwise Closed-Form Ridge Attention (Micro-solver)
     - attn_type="diag_kalman": Diagonal Kalman Attention (Preconditioned Delta-Net)
     - attn_type="chunk_poly": Chunkwise Degree-2 Polynomial Solvable Attention
+    - attn_type="exact_ols": Exact Causal Online Least Squares Attention (Unified direct solve)
+    - attn_type="exact_poly_ols": Exact Causal Polynomial Online Least Squares Attention
     """
 
     def __init__(
@@ -965,6 +1075,10 @@ class SequenceTransformer(nn.Module):
                 attn = DiagonalKalmanAttention(d_model, n_heads)
             elif attn_type == "chunk_poly":
                 attn = ChunkwisePolySolvableAttention(d_model, n_heads)
+            elif attn_type == "exact_ols":
+                attn = ExactCausalOLSAttention(d_model, n_heads, use_poly=False)
+            elif attn_type == "exact_poly_ols":
+                attn = ExactCausalOLSAttention(d_model, n_heads, use_poly=True)
             else:
                 raise ValueError(f"Unknown attn_type: {attn_type}")
 

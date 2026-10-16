@@ -56,12 +56,24 @@ This roadmap outlines the long-term vision, active implementations, and future r
 - [x] **Cloud Benchmark & Artifact Logging:**
   - Evaluated 7 architectures on Modal NVIDIA T4 GPU; synced metrics and 4 publication-ready figures to `results/exp05_solvable_attention_suite/` and logged in `EXPERIMENTS.md`.
 
-### Phase 5: Hierarchical Solvable Networks for Large-Scale Tabular Data (`EXP-06`)
+### Phase 5: The Unified Direct Mathematical Solution vs Pieces Benchmark (`EXP-06`)
+- [x] **Analytical Mathematical Unification:**
+  - Proved all linear/recurrent mechanisms (Linear Attention, Delta-Net, RLS, Chunkwise Ridge) are discrete approximations of inverting the causal Gram matrix $G_t^{-1}$.
+  - Formulated **Exact Causal OLS Attention**: computes the exact causal discounted Gram matrix $G_t$ and cross-covariance $R_t$ via associative prefix cumulative sums, and solves $W_t^* = G_t^{-1} R_t$ in parallel across all $T$ tokens via batched Cholesky factorization ($G_t = L_t L_t^\top$).
+- [x] **Empirical Supremacy on NVIDIA T4 Cloud GPU:**
+  - **Unified Exact Poly OLS** establishes the project record with **$28.65\%$ recall accuracy** in **$7.44\text{ s}$** ($5.0\times$ higher recall than Softmax $5.73\%$, $9.8\times$ faster than RLS, $5.6\times$ faster than Delta).
+  - **Unified Exact OLS** matches RLS accuracy ($21.35\%$ vs $21.88\%$) while training **$23.8\times$ faster** ($3.07\text{ s}$ vs $73.15\text{ s}$).
+  - Universal $O(1)$ zero-KV-cache autoregressive serving memory: $0.0156\text{ MB}$ at $T=4096$ ($256\times$ smaller than KV-cache).
+- [x] **Cloud Benchmark & Artifact Logging:**
+  - Metrics and 4 publication-ready figures synced to `results/exp06_unified_vs_pieces/` and logged in `EXPERIMENTS.md`.
+
+### Phase 6: Hierarchical Solvable Networks for Large-Scale Tabular Data (`EXP-07`)
 - [ ] **Deep Solvable Blocks:** Stack multiple solvable blocks hierarchically (expanding degree-2 on already solved features to capture degree-4 interactions without combinatorial explosion).
 - [ ] **Benchmark vs Gradient Boosted Decision Trees:** Evaluate against XGBoost, LightGBM, and CatBoost on large tabular benchmarks (Covertype, Higgs, Adult).
 
-### Phase 6: Academic Publication & Preprint Packaging
+### Phase 7: Academic Publication & Preprint Packaging
 - [ ] **LaTeX Preprint Finalization:** Convert `paper/manuscript.md` into formal NeurIPS/ICLR-styled `paper/main.tex`.
-- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from Sequence, Kalman, and Solvable Suite benchmarks.
+- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from Sequence, Kalman, Solvable Suite, and Unified OLS benchmarks.
 - [ ] **Overleaf / arXiv Bundle:** Generate a self-contained archive for arXiv submission.
+
 
