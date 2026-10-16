@@ -100,3 +100,64 @@ def generate_associative_recall_data(
 
     return tokens, targets
 
+
+def generate_multihop_associative_recall_data(
+    batch_size: int = 32,
+    seq_len: int = 128,
+    vocab_size: int = 128,
+    num_chains: int = 4,
+    num_queries: int = 2,
+    num_hops: int = 2,
+    seed: int = 42,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Generates synthetic Multi-Hop Associative Recall sequences:
+    - Chains of length `num_hops + 1`: A_i -> B_i -> C_i ...
+    - Pairs (A_i, B_i) and (B_i, C_i) are injected at disjoint random positions in the prefix.
+    - Suffix presents start entity A_q; target is to predict the final entity (e.g. C_q for 2 hops).
+    - Requires at least `num_hops` attention layers in series to solve compositional reasoning.
+    """
+    gen = torch.Generator().manual_seed(seed)
+    tokens = torch.zeros(batch_size, seq_len, dtype=torch.long)
+    targets = torch.full((batch_size, seq_len), -100, dtype=torch.long)
+
+    pool_size = (vocab_size - 1) // (num_hops + 1)
+    pools = []
+    for h in range(num_hops + 1):
+        start = 1 + h * pool_size
+        end = start + pool_size
+        pools.append(list(range(start, end)))
+
+    prefix_max = seq_len - num_queries - 4
+
+    for b in range(batch_size):
+        # Sample distinct entities for num_chains
+        chains = []
+        for h in range(num_hops + 1):
+            perm = torch.randperm(len(pools[h]), generator=gen)[:num_chains]
+            chains.append([pools[h][i] for i in perm])
+
+        pairs = []
+        for i in range(num_chains):
+            for h in range(num_hops):
+                pairs.append((chains[h][i], chains[h + 1][i]))
+
+        n_pairs = len(pairs)
+        avail_positions = (torch.randperm(prefix_max // 2, generator=gen)[:n_pairs] * 2 + 1).tolist()
+        for idx, (k, v) in enumerate(pairs):
+            pos = avail_positions[idx]
+            tokens[b, pos] = k
+            tokens[b, pos + 1] = v
+
+        # Sample queries from chain starts (chains[0] -> target is chains[-1])
+        q_indices = torch.randperm(num_chains, generator=gen)[:num_queries]
+        for q_i, c_idx in enumerate(q_indices):
+            q_pos = seq_len - num_queries + q_i
+            start_entity = chains[0][c_idx]
+            final_entity = chains[-1][c_idx]
+            tokens[b, q_pos] = start_entity
+            targets[b, q_pos] = final_entity
+
+    return tokens, targets
+
+
