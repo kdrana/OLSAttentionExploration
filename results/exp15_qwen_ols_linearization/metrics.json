@@ -1,0 +1,106 @@
+{
+  "model_id": "Qwen/Qwen3.5-0.8B-Base",
+  "total_parameters": 752393024,
+  "trainable_parameters": 113737728,
+  "full_attention_layers": [
+    3,
+    7,
+    11,
+    15,
+    19,
+    23
+  ],
+  "baseline_softmax": {
+    "val_loss": 2.1265625,
+    "val_ppl": 8.385990366600018,
+    "sample": "Once upon a time, there was a little bird named Pip who lived in a very special place called the Bird House. Pip was a very curious and smart little bird.\n\nOne day, Pip went to the Bird House and saw something really"
+  },
+  "linearized_ols": {
+    "final_val_loss": 2.271484375,
+    "final_val_ppl": 9.693779343581,
+    "mean_step_time_ms": 322.78731926857114,
+    "total_time_s": 128.25151721699999,
+    "state_memory_kb": 204.0,
+    "trace": [
+      {
+        "step": 0,
+        "val_loss": 5.59765625,
+        "val_ppl": 269.79333770212673,
+        "sample": "Once upon a time, there was a little bird named Pip who lived in a technicalspaFER-menFERmanycerably m\u2011and\u2011ego\u2011ziaboni1989ishhistory1st\u2011159, andzi",
+        "train_loss": 5.15625,
+        "step_time_ms": 882.4972439999997,
+        "grad_norm": 378.1821594238281
+      },
+      {
+        "step": 25,
+        "val_loss": 3.044921875,
+        "val_ppl": 21.008389858307645,
+        "sample": "",
+        "train_loss": 3.15625,
+        "step_time_ms": 310.3449540000014,
+        "grad_norm": 39.79912185668945
+      },
+      {
+        "step": 50,
+        "val_loss": 3.001953125,
+        "val_ppl": 20.124804822565828,
+        "sample": "Once upon a time, there was a little bird named Pip who lived in a big tree. The little bird was so happy to see the bird. He was so happy that he saw the bird. He was so happy that he had",
+        "train_loss": 2.921875,
+        "step_time_ms": 304.4225129999987,
+        "grad_norm": 14.967268943786621
+      },
+      {
+        "step": 100,
+        "val_loss": 2.693359375,
+        "val_ppl": 14.781248363830914,
+        "sample": "Once upon a time, there was a little bird named Pip who lived in a big, little bird. The bird was very excited and wanted to join the bird. The bird was very excited and wanted to join the bird. The bird was",
+        "train_loss": 2.5625,
+        "step_time_ms": 307.15409799999804,
+        "grad_norm": 3.5534937381744385
+      },
+      {
+        "step": 150,
+        "val_loss": 2.578125,
+        "val_ppl": 13.172416709211404,
+        "sample": "",
+        "train_loss": 1.9296875,
+        "step_time_ms": 313.5114210000012,
+        "grad_norm": 2.4108269214630127
+      },
+      {
+        "step": 200,
+        "val_loss": 2.2578125,
+        "val_ppl": 9.562149070792186,
+        "sample": "Once upon a time, there was a little bird named Pip who lived in a big tree. One day, he saw a big tree with a red color. He was so excited that he wanted to climb it. Sue's mom",
+        "train_loss": 1.7265625,
+        "step_time_ms": 311.9679980000001,
+        "grad_norm": 1.3067518472671509
+      },
+      {
+        "step": 250,
+        "val_loss": 2.2265625,
+        "val_ppl": 9.267952672428878,
+        "sample": "",
+        "train_loss": 1.640625,
+        "step_time_ms": 315.4679780000009,
+        "grad_norm": 1.7931443452835083
+      },
+      {
+        "step": 300,
+        "val_loss": 2.2373046875,
+        "val_ppl": 9.368047413484526,
+        "sample": "",
+        "train_loss": 1.9609375,
+        "step_time_ms": 316.52148200001307,
+        "grad_norm": 1.459366798400879
+      },
+      {
+        "step": 350,
+        "val_loss": 2.271484375,
+        "val_ppl": 9.693779343581,
+        "sample": "Once upon a time, there was a little bird named Pip who lived in a big tree. One day, Pip saw a big tree with a big branch. Pip wanted to touch the branch, so he picked it up and put it in",
+        "train_loss": 1.9609375
+      }
+    ]
+  }
+}

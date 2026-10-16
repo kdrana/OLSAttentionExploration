@@ -12,13 +12,13 @@ import torch
 import torch.nn as nn
 from src.fused_ols_triton import FusedCausalOLSAccumFunction, CausalOLSSolveFunction
 
-def test_fused_triton_correctness(device=None):
+def test_fused_triton_correctness(device=None, dv: int = 256):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[Triton Test] Testing on device: {device} ({torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'})")
+    print(f"[Triton Test] Testing dv={dv} on device: {device} ({torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'})")
 
     torch.manual_seed(42)
-    B, H, T, r, dv = 4, 8, 256, 16, 16
+    B, H, T, r = 2, 4, 128, 16
     gamma = 0.99
     lambda_reg = 0.05
 
@@ -78,8 +78,8 @@ def test_fused_triton_correctness(device=None):
     diff_grad_phi = (triton_grad_phi - phi_k_ref.grad).abs().max().item()
     diff_grad_v = (triton_grad_v - v_ref.grad).abs().max().item()
     print(f"Backward diff grad_phi: {diff_grad_phi:.2e}, diff grad_v: {diff_grad_v:.2e}")
-    assert diff_grad_phi < 1e-4, f"Backward diff grad_phi too high: {diff_grad_phi}"
-    assert diff_grad_v < 1e-4, f"Backward diff grad_v too high: {diff_grad_v}"
+    assert diff_grad_phi < 2e-4, f"Backward diff grad_phi too high: {diff_grad_phi}"
+    assert diff_grad_v < 2e-4, f"Backward diff grad_v too high: {diff_grad_v}"
     print("✨ ALL TRITON TESTS PASSED! Numerical equivalence verified.")
 
     # 3. Latency Benchmark

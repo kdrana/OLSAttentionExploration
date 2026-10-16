@@ -174,7 +174,7 @@ class FusedCausalOLSAccumFunction(torch.autograd.Function):
         _, _, _, dv = v.shape
 
         assert r in (8, 16, 32), f"Rank {r} must be power-of-2 (8, 16, 32) for Triton tile."
-        assert dv in (8, 16, 32), f"dv {dv} must be power-of-2 (8, 16, 32) for Triton tile."
+        assert dv in (8, 16, 32, 64, 128, 256), f"dv {dv} must be power-of-2 (8 to 256) for Triton tile."
 
         if not phi_k.is_cuda or not TRITON_AVAILABLE:
             # High-fidelity PyTorch CPU fallback
