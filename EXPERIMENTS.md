@@ -1029,31 +1029,41 @@ Following the Layer 3 proof of concept in EXP-17, EXP-18 scales Direct Operator 
 
 *Figure 45 (Academic Benchmark Parity Bar Chart):* [`results/exp18_qwen_full_validation/fig45_benchmark_parity_barchart.png`](results/exp18_qwen_full_validation/fig45_benchmark_parity_barchart.png)
 
-#### 3. Long-Context Needle-In-A-Haystack (NIAH) Stress-Test
+#### 3. Long-Context Needle-In-A-Haystack (NIAH) Comparative Stress-Test
 
-Context scaling from $T = 1,024 \to 32,768$ tokens across 3 needle depths:
+Context scaling from $T = 1,024 \to 32,768$ tokens across 3 needle depths ($10\%, 50\%, 90\%$):
 
-| Context Length ($T$) | Needle Depth | Flash-OLS State Memory | Softmax KV Memory | Flash-OLS VRAM (MB) | Gen Latency (s) | Needle Retrieval Success | Model Output Sample |
+| Context ($T$) | Depth | Model Architecture | Attention State Size | Peak VRAM | 16-Token Latency | Retrieval Success | Generated Needle Output |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **1,024** | 10% / 50% / 90% | **$204.0\text{ KB}$** | $12.0\text{ MB}$ | $1,803.5\text{ MB}$ | $0.65\text{s}$ | 0% | *"the secretized secret..."* |
-| **2,048** | 10% / 50% / 90% | **$204.0\text{ KB}$** | $24.0\text{ MB}$ | $2,110.1\text{ MB}$ | $0.77\text{s}$ | 0% | *"a secret code. Secret code: Secret..."* |
-| **4,096** | 10% / 50% / 90% | **$204.0\text{ KB}$** | $48.0\text{ MB}$ | $2,723.3\text{ MB}$ | $0.95\text{s}$ | 0% | *"the mathematical code of the..."* |
-| **8,192** | 10% / 50% / 90% | **$204.0\text{ KB}$** | $96.0\text{ MB}$ | $3,948.8\text{ MB}$ | $1.41\text{s}$ | 0% | *": 12345678987698"* *(generates numbers)* |
-| **16,384** | 10% / 50% / 90% | **$204.0\text{ KB}$** | $192.0\text{ MB}$ | $6,402.3\text{ MB}$ | $2.26\text{s}$ | 0% | *"the secret key. The secret code..."* |
-| **32,768** | 10% / 50% / 90% | **$204.0\text{ KB}$** | $384.0\text{ MB}$ | $11,307.7\text{ MB}$ | **$4.42\text{s}$** | 0% | *"a critical piece of the mathematical universe..."* |
+| **1,024** | 10% / 50% / 90% | **Original Softmax**<br>Flash-OLS Linearized | $12.0\text{ MB}$ ($12,288\text{ KB}$)<br>**$204.0\text{ KB}$** ($60.2\times$ smaller) | $1,612.7\text{ MB}$<br>$1,803.5\text{ MB}$ | $0.56\text{s}$<br>$0.65\text{s}$ | **100.0% (3/3)**<br>0.0% (0/3) | **`"74921."`**<br>*"the secretized secret..."* |
+| **2,048** | 10% / 50% / 90% | **Original Softmax**<br>Flash-OLS Linearized | $24.0\text{ MB}$ ($24,576\text{ KB}$)<br>**$204.0\text{ KB}$** ($120.5\times$ smaller) | $1,737.3\text{ MB}$<br>$2,110.1\text{ MB}$ | $0.64\text{s}$<br>$0.77\text{s}$ | **100.0% (3/3)**<br>0.0% (0/3) | **`"74921."`**<br>*"a secret code. Secret code..."* |
+| **4,096** | 10% / 50% / 90% | **Original Softmax**<br>Flash-OLS Linearized | $48.0\text{ MB}$ ($49,152\text{ KB}$)<br>**$204.0\text{ KB}$** ($241.0\times$ smaller) | $1,986.5\text{ MB}$<br>$2,723.3\text{ MB}$ | $0.82\text{s}$<br>$0.95\text{s}$ | **100.0% (3/3)**<br>0.0% (0/3) | **`"74921."`**<br>*"the mathematical code of the..."* |
+| **8,192** | 10% / 50% / 90% | **Original Softmax**<br>Flash-OLS Linearized | $96.0\text{ MB}$ ($98,304\text{ KB}$)<br>**$204.0\text{ KB}$** ($481.9\times$ smaller) | $2,484.0\text{ MB}$<br>$3,948.8\text{ MB}$ | $1.20\text{s}$<br>$1.41\text{s}$ | **100.0% (3/3)**<br>0.0% (0/3) | **`"74921."`**<br>*": 12345678987698..."* |
+| **16,384** | 10% / 50% / 90% | **Original Softmax**<br>Flash-OLS Linearized | $192.0\text{ MB}$ ($196,608\text{ KB}$)<br>**$204.0\text{ KB}$** ($963.8\times$ smaller) | $3,481.0\text{ MB}$<br>$6,402.3\text{ MB}$ | $2.04\text{s}$<br>$2.26\text{s}$ | **100.0% (3/3)**<br>0.0% (0/3) | **`"74921."`**<br>*"the secret key. The secret code..."* |
+| **32,768** | 10% / 50% / 90% | **Original Softmax**<br>Flash-OLS Linearized | $384.0\text{ MB}$ ($393,216\text{ KB}$)<br>**$204.0\text{ KB}$** (**$1,927.5\times$ smaller**) | $5,475.8\text{ MB}$<br>$11,307.7\text{ MB}$ | **$4.37\text{s}$**<br>**$4.42\text{s}$** | **100.0% (3/3)**<br>0.0% (0/3) | **`"74921."`**<br>*"a critical piece of..."* |
 
-*Figure 46 (NIAH Retrieval Heatmap):* [`results/exp18_qwen_full_validation/fig46_niah_retrieval_heatmap.png`](results/exp18_qwen_full_validation/fig46_niah_retrieval_heatmap.png)  
-*Figure 47 (Context Memory & VRAM Curves):* [`results/exp18_qwen_full_validation/fig47_context_memory_scaling.png`](results/exp18_qwen_full_validation/fig47_context_memory_scaling.png)
+- **Original Pre-Trained Qwen3.5-0.8B (Softmax Attention):** Achieved **$18 / 18$ ($100.0\%$) retrieval success** across all context lengths up to $32,768$ tokens and all depths ($10\%, 50\%, 90\%$), immediately decoding `"74921."`.
+- **Linearized Flash-OLS ($O(1)$ State):** Achieved **$0 / 18$ ($0.0\%$) exact string retrieval** of `"74921"`, although it consistently outputted related semantic concepts (*"secret code"*, *"secret key"*, numbers).
+- **Attention Cache Footprint:** At $T=32,768$, Softmax required $393.2\text{ MB}$ for the 6 attention layers alone (scaling linearly $\mathcal{O}(T)$), whereas Flash-OLS maintained a strictly constant **$204.0\text{ KB}$** footprint ($1,927.5\times$ compression).
+- **Generation Latency:** At $T=32,768$, generation latency was nearly identical ($4.37\text{s}$ Softmax vs $4.42\text{s}$ Flash-OLS).
+
+*Figure 46 (Flash-OLS NIAH Heatmap):* [`results/exp18_qwen_full_validation/fig46_niah_retrieval_heatmap.png`](results/exp18_qwen_full_validation/fig46_niah_retrieval_heatmap.png)  
+*Figure 47 (Context Memory & VRAM Curves):* [`results/exp18_qwen_full_validation/fig47_context_memory_scaling.png`](results/exp18_qwen_full_validation/fig47_context_memory_scaling.png)  
+*Figure 48 (Side-by-Side Softmax vs Flash-OLS NIAH Heatmap):* [`results/exp18_qwen_full_validation/fig48_niah_softmax_vs_ols_heatmap.png`](results/exp18_qwen_full_validation/fig48_niah_softmax_vs_ols_heatmap.png)  
+*Figure 49 (NIAH Generation Latency & VRAM Scaling):* [`results/exp18_qwen_full_validation/fig49_niah_latency_vram_comparison.png`](results/exp18_qwen_full_validation/fig49_niah_latency_vram_comparison.png)
 
 #### 4. Scientific Takeaways: The Rank-$r$ Compression Horizon
 
-1. **Flawless $O(1)$ Scaling up to $32,768$ Tokens:**
-   - At $T=32,768$, the model generated 16 new tokens in **$4.42\text{ seconds}$** with zero CUDA memory crashes, while its attention cache remained clamped at **$204.0\text{ KB}$**.
-2. **Associative Retrieval vs. Rank-$r$ Capacity:**
-   - The model retained the semantic concept of the secret code across all depths (outputting *"secret code"*, *"secret key"*, and numerical tokens), but failed to reproduce the exact 5-digit string `74921` when diluted by 32k distractor tokens.
-   - This empirically confirms the theoretical **Information Bottleneck of Fixed-Rank Covariance**: compressing $32\text{k}$ arbitrary tokens into a rank-16 precision matrix ($16 \times 16$) creates eigenvalue spectral mixing. Exact associative retrieval across $32\text{k}$ tokens requires higher subspace rank ($r \ge 64$) or hybrid sliding-window attention.
-3. **Coding Excellence ($40\%$ HumanEval Pass Rate):**
-   - Because code was included in the Direct Operator calibration, Flash-OLS achieved a **$40.0\%$ test pass rate on HumanEval**, meeting and slightly exceeding the reported $35.4\%$ baseline for Qwen 0.8B models.
+1. **Perfect $100.0\%$ Retrieval by Original Softmax Attention:**
+   - Softmax attention retains all uncompressed token vectors ($T \times d$). Because the exponential dot-product $\exp(q^\top k / \sqrt{d})$ behaves as an infinite-rank selective routing operator, the model achieves perfect $100\%$ associative recall of the needle `74921` across all context lengths up to $32,768$ tokens.
+2. **The Fundamental Rank-$r$ Information Bottleneck in Recurrent Attention:**
+   - In Flash-OLS with rank $r=16$, the model compresses all $32,768$ tokens into a single $16 \times 16$ cumulative Gram matrix $G = \sum_{t=1}^T \phi(k_t) \phi(k_t)^\top$.
+   - When $T=32,768$, a single needle token accounts for only $\frac{1}{32,768} \approx 0.003\%$ of the cumulative spectral power of the state. The $16 \times 16$ covariance matrix experiences severe eigenvalue dilution, causing the exact 5-digit sequence to be drowned out by distractor noise even though semantic associations (*"secret key"*) remain active.
+3. **The Architectural Justification for Hybrid Models:**
+   - This contrast illuminates precisely why frontier SLMs like Qwen3.5 adopt hybrid architectures (18 linear recurrence layers + 6 full-attention layers). Fully linearizing all full-attention layers to low-rank recurrence trades needle retrieval for an $O(1)$ memory footprint. To preserve both $100\%$ needle retrieval and sub-quadratic scaling, linear attention requires higher subspace rank ($r \ge 64$), sliding-window hybridization, or dedicated retrieval heads.
+4. **Coding Excellence ($40\%$ HumanEval Pass Rate):**
+   - For generative coding tasks that do not depend on extreme-context needle retrieval, Flash-OLS achieved **$40.0\%$ test pass rate on HumanEval**, exceeding the official reported $35.4\%$ baseline for Qwen 0.8B models while keeping memory strictly constant.
+
 
 
 
