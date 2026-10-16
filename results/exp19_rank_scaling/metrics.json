@@ -1,0 +1,52 @@
+{
+  "experiment_id": "EXP-19-RANK-SCALING",
+  "model_id": "Qwen/Qwen3.5-0.8B-Base",
+  "target_layer": 3,
+  "steps_per_rank": 350,
+  "results": [
+    {
+      "rank": 8,
+      "val_r2": 0.7080078125,
+      "val_cos_sim": 0.836479052901268,
+      "state_kb": 51.0,
+      "state_mb": 0.0498046875,
+      "compression_vs_softmax_32k": 7710.117647058823,
+      "decode_kflops_per_token": 52.224,
+      "param_count": 40960,
+      "fit_time_s": 5.588751483999999
+    },
+    {
+      "rank": 16,
+      "val_r2": 0.4013671875,
+      "val_cos_sim": 0.7579400837421417,
+      "state_kb": 108.0,
+      "state_mb": 0.10546875,
+      "compression_vs_softmax_32k": 3640.8888888888887,
+      "decode_kflops_per_token": 110.592,
+      "param_count": 81920,
+      "fit_time_s": 3.738583159000001
+    },
+    {
+      "rank": 32,
+      "val_r2": 0.234375,
+      "val_cos_sim": 0.6906084716320038,
+      "state_kb": 240.0,
+      "state_mb": 0.234375,
+      "compression_vs_softmax_32k": 1638.4,
+      "decode_kflops_per_token": 245.76,
+      "param_count": 163840,
+      "fit_time_s": 4.670540610000003
+    },
+    {
+      "rank": 64,
+      "val_r2": 0.6845703125,
+      "val_cos_sim": 0.7932171076536179,
+      "state_kb": 576.0,
+      "state_mb": 0.5625,
+      "compression_vs_softmax_32k": 682.6666666666666,
+      "decode_kflops_per_token": 589.824,
+      "param_count": 327680,
+      "fit_time_s": 8.282922982000002
+    }
+  ]
+}

@@ -173,7 +173,7 @@ class FusedCausalOLSAccumFunction(torch.autograd.Function):
         B, H, T, r = phi_k.shape
         _, _, _, dv = v.shape
 
-        assert r in (8, 16, 32), f"Rank {r} must be power-of-2 (8, 16, 32) for Triton tile."
+        assert r in (8, 16, 32, 64), f"Rank {r} must be power-of-2 (8 to 64) for Triton tile."
         assert dv in (8, 16, 32, 64, 128, 256), f"dv {dv} must be power-of-2 (8 to 256) for Triton tile."
 
         if not phi_k.is_cuda or not TRITON_AVAILABLE:
@@ -196,6 +196,7 @@ class FusedCausalOLSAccumFunction(torch.autograd.Function):
             R = torch.empty(B, H, T, r, dv, device=v.device, dtype=torch.float32)
 
             grid = (B * H,)
+            n_warps = 8 if (r >= 64 or dv >= 256) else 4
             _fused_causal_accum_fwd_kernel[grid](
                 phi_k, v, G, R,
                 T, float(gamma), float(lambda_reg),
@@ -206,7 +207,7 @@ class FusedCausalOLSAccumFunction(torch.autograd.Function):
                 H,
                 BLOCK_R=r,
                 BLOCK_DV=dv,
-                num_warps=4,
+                num_warps=n_warps,
             )
 
         ctx.save_for_backward(phi_k, v)
@@ -255,6 +256,7 @@ class FusedCausalOLSAccumFunction(torch.autograd.Function):
             grad_v = torch.empty_like(v)
 
             grid = (B * H,)
+            n_warps = 8 if (r >= 64 or dv >= 256) else 4
             _fused_causal_accum_bwd_kernel[grid](
                 grad_G, grad_R, phi_k, v, grad_phi, grad_v,
                 T, float(gamma),
@@ -267,7 +269,7 @@ class FusedCausalOLSAccumFunction(torch.autograd.Function):
                 H,
                 BLOCK_R=r,
                 BLOCK_DV=dv,
-                num_warps=4,
+                num_warps=n_warps,
             )
 
         return grad_phi.to(ctx.orig_phi_dtype), grad_v.to(ctx.orig_v_dtype), None, None
