@@ -318,6 +318,14 @@ def run_deep_boosting_suite(device: torch.device = None) -> dict:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Starting EXP-09 Deep Closed-Form Boosting Suite on Device: {device}")
 
+    # CUDA context & cuSOLVER / cuBLAS library warmup to avoid cold-start benchmarking distortion
+    if device.type == "cuda":
+        dummy = torch.randn(64, 64, device=device)
+        _ = torch.linalg.solve(dummy.T @ dummy + torch.eye(64, device=device), dummy[:, :1])
+        _ = torch.linalg.eigh(dummy.T @ dummy)
+        torch.cuda.synchronize()
+        print("  -> CUDA context & cuSOLVER / cuBLAS libraries warmed up.")
+
     all_results = {}
     for ds_name in ["kin8nm", "friedman1", "california"]:
         all_results[ds_name] = run_benchmark_for_dataset(ds_name, device=device)

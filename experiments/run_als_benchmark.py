@@ -118,9 +118,13 @@ def run_benchmark_for_dataset(dataset_name: str, device: torch.device, n_stages:
 
     # 1. Greedy DSN Fit (Baseline from EXP-09)
     print("\n[1/5] Fitting Greedy Deep Solvable Cascade (DSN Stage 4)...")
+    if device.type == "cuda":
+        torch.cuda.synchronize()
     t0 = time.perf_counter()
     model = DeepSolvableCascade(n_stages=n_stages, d_latent=8, shrinkage=0.5, lambda_reg=1e-3, use_rff=False).to(device)
     model.fit(X_tr_dev, y_tr_dev)
+    if device.type == "cuda":
+        torch.cuda.synchronize()
     greedy_fit_time = time.perf_counter() - t0
 
     pred_tr_greedy = model.predict(X_tr_dev)
@@ -223,6 +227,8 @@ def run_benchmark_for_dataset(dataset_name: str, device: torch.device, n_stages:
         })
         print(f"  -> ALS Cycle {cycle}: Test R2 = {r2_te_c:.4f}, Train R2 = {r2_tr_c:.4f} (Delta: {r2_te_c - r2_te_greedy:+.4f})")
 
+    if device.type == "cuda":
+        torch.cuda.synchronize()
     als_refine_time = time.perf_counter() - t0
     total_als_time = greedy_fit_time + als_refine_time
 
@@ -302,6 +308,15 @@ def run_als_suite(device: torch.device = None) -> dict:
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Starting EXP-10 Alternating Least Squares (ALS) Suite on Device: {device}")
+
+    # CUDA context, cuSOLVER / cuBLAS, and cascade allocator warmup
+    if device.type == "cuda":
+        dummy_x = torch.randn(64, 8, device=device)
+        dummy_y = torch.randn(64, 1, device=device)
+        warm_model = DeepSolvableCascade(n_stages=4).to(device)
+        warm_model.fit(dummy_x, dummy_y)
+        torch.cuda.synchronize()
+        print("  -> CUDA context, cuSOLVER/cuBLAS & cascade memory pools fully warmed up.")
 
     all_results = {}
     for ds_name in ["kin8nm", "friedman1", "california"]:

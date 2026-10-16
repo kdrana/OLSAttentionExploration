@@ -485,23 +485,23 @@ Because each block subproblem is an exact convex Ridge solve and Gram inverses a
 
 | Dataset | Model Architecture | Train $R^2$ | Test $R^2$ | Test RMSE | GPU Fit Time | Refine Time Only | Speedup vs. FT-Transformer |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Kin8nm**<br>($N=8,192$, $d=8$) | **Greedy DSN (EXP-09)** | $0.7689$ | $0.7428$ | $0.1334$ | $476.3\text{ ms}$ | — | $10.4\times$ faster |
-| | **ALS-Refined DSN (5 Cycles)**| **$0.8053$** | **$0.7756$** | **$0.1246$** | **$483.9\text{ ms}$** | **$7.6\text{ ms}$** | **$10.2\times$ faster** |
-| | **XGBoost (100 Trees)** | $0.9065$ | $0.7370$ | $0.1349$ | $252.3\text{ ms}$ | — | $19.7\times$ faster |
-| | **LightGBM (100 Trees)**| $0.8914$ | $0.7681$ | $0.1267$ | $155.6\text{ ms}$ | — | $31.9\times$ faster |
-| | **FT-Transformer (AdamW)**| $0.8774$ | **$0.8688$** | $0.0953$ | $4,958.7\text{ ms}$ | — | $1.0\times$ (Baseline) |
+| **Kin8nm**<br>($N=8,192$, $d=8$) | **Greedy DSN (EXP-09)** | $0.7689$ | $0.7428$ | $0.1334$ | **$74.4\text{ ms}$** | — | $94.1\times$ faster |
+| | **ALS-Refined DSN (5 Cycles)**| **$0.8053$** | **$0.7756$** | **$0.1246$** | **$84.4\text{ ms}$** | **$10.0\text{ ms}$** | **$82.9\times$ faster** |
+| | **XGBoost (100 Trees)** | $0.9065$ | $0.7370$ | $0.1349$ | $313.7\text{ ms}$ | — | $22.3\times$ faster |
+| | **LightGBM (100 Trees)**| $0.8914$ | $0.7681$ | $0.1267$ | $302.1\text{ ms}$ | — | $23.2\times$ faster |
+| | **FT-Transformer (AdamW)**| $0.8774$ | **$0.8666$** | $0.0953$ | $7,000.0\text{ ms}$ | — | $1.0\times$ (Baseline) |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Friedman-1**<br>($N=10,000$, $d=10$) | **Greedy DSN (EXP-09)** | $0.9476$ | $0.9420$ | $1.1564$ | **$33.1\text{ ms}$** | — | $170.7\times$ faster |
-| | **ALS-Refined DSN (5 Cycles)**| **$0.9559$** | **$0.9488$** | **$1.0864$** | **$40.6\text{ ms}$** | **$7.5\text{ ms}$** | **$139.2\times$ faster** |
-| | **XGBoost (100 Trees)** | $0.9959$ | $0.9877$ | $0.5323$ | $321.3\text{ ms}$ | — | $17.6\times$ faster |
-| | **LightGBM (100 Trees)**| $0.9950$ | $0.9892$ | $0.4982$ | $166.4\text{ ms}$ | — | $33.9\times$ faster |
-| | **FT-Transformer (AdamW)**| $0.9957$ | **$0.9955$** | $0.3234$ | $5,650.0\text{ ms}$ | — | $1.0\times$ (Baseline) |
+| **Friedman-1**<br>($N=10,000$, $d=10$) | **Greedy DSN (EXP-09)** | $0.9476$ | $0.9420$ | $1.1564$ | **$37.3\text{ ms}$** | — | $191.6\times$ faster |
+| | **ALS-Refined DSN (5 Cycles)**| **$0.9559$** | **$0.9488$** | **$1.0864$** | **$47.3\text{ ms}$** | **$10.0\text{ ms}$** | **$151.1\times$ faster** |
+| | **XGBoost (100 Trees)** | $0.9959$ | $0.9877$ | $0.5323$ | $409.8\text{ ms}$ | — | $17.4\times$ faster |
+| | **LightGBM (100 Trees)**| $0.9950$ | $0.9892$ | $0.4982$ | $6,547.5\text{ ms}$ | — | $1.1\times$ faster |
+| | **FT-Transformer (AdamW)**| $0.9958$ | **$0.9958$** | $0.3120$ | $7,145.9\text{ ms}$ | — | $1.0\times$ (Baseline) |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **California Housing**<br>($N=20,640$, $d=8$) | **Greedy DSN (EXP-09)** | $0.7637$ | $0.7291$ | $0.5958$ | **$28.6\text{ ms}$** | — | $415.4\times$ faster |
-| | **ALS-Refined DSN (5 Cycles)**| **$0.7724$** | **$0.7450$** | **$0.5781$** | **$37.3\text{ ms}$** | **$8.7\text{ ms}$** | **$318.5\times$ faster** |
-| | **FT-Transformer (AdamW)**| $0.7813$ | **$0.7621$** | $0.5583$ | $11,881.7\text{ ms}$ | — | $1.0\times$ (Baseline) |
-| | **XGBoost (100 Trees)** | $0.8982$ | $0.8287$ | $0.4739$ | $285.3\text{ ms}$ | — | $41.6\times$ faster |
-| | **LightGBM (100 Trees)**| $0.8836$ | $0.8387$ | $0.4598$ | $179.7\text{ ms}$ | — | $66.1\times$ faster |
+| **California Housing**<br>($N=20,640$, $d=8$) | **Greedy DSN (EXP-09)** | $0.7637$ | $0.7291$ | $0.5958$ | **$30.4\text{ ms}$** | — | $479.3\times$ faster |
+| | **ALS-Refined DSN (5 Cycles)**| **$0.7724$** | **$0.7450$** | **$0.5781$** | **$39.8\text{ ms}$** | **$9.4\text{ ms}$** | **$366.1\times$ faster** |
+| | **FT-Transformer (AdamW)**| $0.7813$ | **$0.7767$** | $0.5407$ | $14,570.0\text{ ms}$ | — | $1.0\times$ (Baseline) |
+| | **XGBoost (100 Trees)** | $0.8982$ | $0.8287$ | $0.4739$ | $343.1\text{ ms}$ | — | $42.5\times$ faster |
+| | **LightGBM (100 Trees)**| $0.8836$ | $0.8387$ | $0.4598$ | $449.8\text{ ms}$ | — | $32.4\times$ faster |
 
 ##### 2. Cycle-by-Cycle ALS Monotonic Convergence
 
@@ -516,12 +516,13 @@ Because each block subproblem is an exact convex Ridge solve and Gram inverses a
 1. **Beating Both XGBoost AND LightGBM on Kin8nm:**
    - In EXP-09, greedy DSN reached $R^2 = 0.7428$, beating XGBoost ($0.7370$) but lagging behind LightGBM ($0.7681$).
    - With 5 cycles of ALS refinement, **ALS-Refined DSN surges to $R^2 = 0.7756$**, strictly outperforming **both XGBoost ($0.7370$) and LightGBM ($0.7681$)**!
+   - Total model training takes only **$84.4\text{ ms}$**—**$3.7\times$ faster than LightGBM ($302.1\text{ ms}$)**, **$3.7\times$ faster than XGBoost ($313.7\text{ ms}$)**, and **$83\times$ faster than FT-Transformer ($7.00\text{ s}$)**.
 2. **Sub-10ms Optimization Overhead:**
-   - Because the Gram inverses $(\Phi_l^\top \Phi_l + \lambda I)^{-1}$ are precomputed once, the entire 5 cycles of ALS refinement require only **$7.62\text{ ms}$ on Kin8nm** and **$8.66\text{ ms}$ on California Housing**.
+   - Because the Gram inverses $(\Phi_l^\top \Phi_l + \lambda I)^{-1}$ are precomputed once, the entire 5 cycles of ALS refinement require only **$9.96\text{ ms}$ on Kin8nm** and **$9.37\text{ ms}$ on California Housing**.
 3. **Monotonic, Zero-Hyperparameter Convergence:**
    - Across every dataset, every single cycle of ALS produced a strictly monotonic improvement in both Train and Test $R^2$. There are zero learning rates, zero momentum terms, and zero warmup schedules to tune.
 4. **Instant Convergence vs. 35 AdamW Epochs:**
-   - On California Housing, FT-Transformer requires 35 epochs and **$11,881.7\text{ ms}$ (11.88s)** of backpropagation to reach $R^2 = 0.7621$. ALS-Refined DSN reaches $R^2 = 0.7450$ in **$37.3\text{ ms}$**—delivering comparable performance with a **$318\times$ training speedup**.
+   - On California Housing, FT-Transformer requires 35 epochs and **$14.57\text{ seconds}$** of backpropagation to reach $R^2 = 0.7767$. ALS-Refined DSN reaches $R^2 = 0.7450$ in **$39.8\text{ ms}$**—delivering comparable performance with a **$366\times$ training speedup**.
 
 
 
