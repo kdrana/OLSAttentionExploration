@@ -67,13 +67,27 @@ This roadmap outlines the long-term vision, active implementations, and future r
 - [x] **Cloud Benchmark & Artifact Logging:**
   - Metrics and 4 publication-ready figures synced to `results/exp06_unified_vs_pieces/` and logged in `EXPERIMENTS.md`.
 
-### Phase 6: Hierarchical Solvable Networks for Large-Scale Tabular Data (`EXP-07`)
+### Phase 6: "Flash-OLS" — Chunked Associative Causal OLS for Ultra-Long Sequences (`EXP-07`)
+- [ ] **Chunked Prefix Scan & SRAM Formulation:**
+  - Break long contexts into chunks ($C = 64$ or $128$).
+  - Propagate inter-chunk Gram states ($G_c \in \mathbb{R}^{d \times d}$) and cross-covariance ($R_c \in \mathbb{R}^{d \times d_{\text{head}}}$) via parallel prefix associative scans.
+  - Compute intra-chunk Cholesky factorizations on SRAM / GPU tensor cores without materializing the global $(B, H, T, d, d)$ tensor in VRAM.
+- [ ] **Ultra-Long Context Benchmark ($T = 4k \to 128k$):**
+  - Benchmark wall-clock speedup and peak memory vs. FlashAttention-2 and Mamba across scaling sequence lengths.
+  - Demonstrate linear $O(T)$ training runtime with strictly sub-linear peak memory.
+
+### Phase 7: Hierarchical Solvable Networks for Large-Scale Tabular Data (`EXP-08`)
 - [ ] **Deep Solvable Blocks:** Stack multiple solvable blocks hierarchically (expanding degree-2 on already solved features to capture degree-4 interactions without combinatorial explosion).
 - [ ] **Benchmark vs Gradient Boosted Decision Trees:** Evaluate against XGBoost, LightGBM, and CatBoost on large tabular benchmarks (Covertype, Higgs, Adult).
 
-### Phase 7: Academic Publication & Preprint Packaging
+### Phase 8: Real-World Sequence & Language Modeling Benchmark (`EXP-09`)
+- [ ] **Language Pretraining & Perplexity:** Train transformer backbones powered by Flash-OLS vs. Standard Softmax and Linear Attention on WikiText-103 or character-level language modeling.
+- [ ] **Long Range Arena (LRA):** Evaluate on long-context synthetic retrieval and reasoning (ListOps, Text classification, Retrieval).
+
+### Phase 9: Academic Publication & Preprint Packaging
 - [ ] **LaTeX Preprint Finalization:** Convert `paper/manuscript.md` into formal NeurIPS/ICLR-styled `paper/main.tex`.
-- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from Sequence, Kalman, Solvable Suite, and Unified OLS benchmarks.
+- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from all experimental phases.
 - [ ] **Overleaf / arXiv Bundle:** Generate a self-contained archive for arXiv submission.
+
 
 
