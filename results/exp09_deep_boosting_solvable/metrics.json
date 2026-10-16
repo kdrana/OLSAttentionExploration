@@ -1,0 +1,488 @@
+{
+  "kin8nm": {
+    "dataset": "kin8nm",
+    "n_train": 6553,
+    "n_test": 1639,
+    "n_features": 8,
+    "y_mean": 0.715003755200565,
+    "y_std": 0.2637222675188613,
+    "models": {
+      "Ridge Linear (Deg 1)": {
+        "train_r2": 0.4151,
+        "test_r2": 0.40835,
+        "train_rmse": 0.20169,
+        "test_rmse": 0.20233,
+        "fit_time_sec": 0.4618,
+        "fit_time_ms": 461.79,
+        "infer_ms_per_1k": 0.091,
+        "effective_degree": 1,
+        "approach": "Closed-Form OLS"
+      },
+      "DSN-Poly (Stage 1, Deg 2)": {
+        "train_r2": 0.56603,
+        "test_r2": 0.5485,
+        "train_rmse": 0.17373,
+        "test_rmse": 0.17675,
+        "fit_time_sec": 0.0329,
+        "fit_time_ms": 32.92,
+        "infer_ms_per_1k": 5.778,
+        "effective_degree": 2,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 2, Deg 4)": {
+        "train_r2": 0.69371,
+        "test_r2": 0.66914,
+        "train_rmse": 0.14595,
+        "test_rmse": 0.1513,
+        "fit_time_sec": 0.0658,
+        "fit_time_ms": 65.84,
+        "infer_ms_per_1k": 2.234,
+        "effective_degree": 4,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 3, Deg 8)": {
+        "train_r2": 0.7486,
+        "test_r2": 0.72384,
+        "train_rmse": 0.13223,
+        "test_rmse": 0.13823,
+        "fit_time_sec": 0.0988,
+        "fit_time_ms": 98.75,
+        "infer_ms_per_1k": 3.657,
+        "effective_degree": 8,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 4, Deg 16)": {
+        "train_r2": 0.76886,
+        "test_r2": 0.74283,
+        "train_rmse": 0.12679,
+        "test_rmse": 0.1334,
+        "fit_time_sec": 0.1317,
+        "fit_time_ms": 131.67,
+        "infer_ms_per_1k": 5.176,
+        "effective_degree": 16,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 5, Deg 32)": {
+        "train_r2": 0.77993,
+        "test_r2": 0.75173,
+        "train_rmse": 0.12372,
+        "test_rmse": 0.13107,
+        "fit_time_sec": 0.1646,
+        "fit_time_ms": 164.59,
+        "infer_ms_per_1k": 6.755,
+        "effective_degree": 32,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Kernel (Stage 4, Deg 16+RFF)": {
+        "train_r2": 0.7773,
+        "test_r2": 0.73504,
+        "train_rmse": 0.12445,
+        "test_rmse": 0.1354,
+        "fit_time_sec": 0.0464,
+        "fit_time_ms": 46.44,
+        "infer_ms_per_1k": 5.835,
+        "effective_degree": "16 + Harmonic RFF",
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "XGBoost (100 Trees)": {
+        "train_r2": 0.90652,
+        "test_r2": 0.73699,
+        "train_rmse": 0.08063,
+        "test_rmse": 0.1349,
+        "fit_time_sec": 0.268,
+        "fit_time_ms": 268.02,
+        "infer_ms_per_1k": 2.265,
+        "effective_degree": "Gradient Boosted Trees",
+        "approach": "Greedy Histogram Tree Splitting"
+      },
+      "LightGBM (100 Trees)": {
+        "train_r2": 0.89136,
+        "test_r2": 0.76809,
+        "train_rmse": 0.08692,
+        "test_rmse": 0.12667,
+        "fit_time_sec": 0.1599,
+        "fit_time_ms": 159.91,
+        "infer_ms_per_1k": 1.233,
+        "effective_degree": "Gradient Boosted Trees",
+        "approach": "Leaf-wise Tree Splitting"
+      },
+      "FT-Transformer (Deep Attention)": {
+        "train_r2": 0.87386,
+        "test_r2": 0.86036,
+        "train_rmse": 0.09366,
+        "test_rmse": 0.0983,
+        "fit_time_sec": 4.7828,
+        "fit_time_ms": 4782.83,
+        "infer_ms_per_1k": 7.864,
+        "effective_degree": "Neural Attention (35 ep)",
+        "approach": "Iterative Backprop (AdamW)"
+      }
+    },
+    "dsn_depth_progression": [
+      {
+        "stage": 1,
+        "effective_degree": 2,
+        "train_r2": 0.56603,
+        "test_r2": 0.5485,
+        "test_rmse": 0.17675,
+        "cumulative_fit_ms": 32.92
+      },
+      {
+        "stage": 2,
+        "effective_degree": 4,
+        "train_r2": 0.69371,
+        "test_r2": 0.66914,
+        "test_rmse": 0.1513,
+        "cumulative_fit_ms": 65.84
+      },
+      {
+        "stage": 3,
+        "effective_degree": 8,
+        "train_r2": 0.7486,
+        "test_r2": 0.72384,
+        "test_rmse": 0.13823,
+        "cumulative_fit_ms": 98.75
+      },
+      {
+        "stage": 4,
+        "effective_degree": 16,
+        "train_r2": 0.76886,
+        "test_r2": 0.74283,
+        "test_rmse": 0.1334,
+        "cumulative_fit_ms": 131.67
+      },
+      {
+        "stage": 5,
+        "effective_degree": 32,
+        "train_r2": 0.77993,
+        "test_r2": 0.75173,
+        "test_rmse": 0.13107,
+        "cumulative_fit_ms": 164.59
+      }
+    ]
+  },
+  "friedman1": {
+    "dataset": "friedman1",
+    "n_train": 8000,
+    "n_test": 2000,
+    "n_features": 10,
+    "y_mean": 14.359494456101167,
+    "y_std": 4.883993026652355,
+    "models": {
+      "Ridge Linear (Deg 1)": {
+        "train_r2": 0.75306,
+        "test_r2": 0.75148,
+        "train_rmse": 2.427,
+        "test_rmse": 2.39442,
+        "fit_time_sec": 0.001,
+        "fit_time_ms": 0.98,
+        "infer_ms_per_1k": 0.02,
+        "effective_degree": 1,
+        "approach": "Closed-Form OLS"
+      },
+      "DSN-Poly (Stage 1, Deg 2)": {
+        "train_r2": 0.9251,
+        "test_r2": 0.92473,
+        "train_rmse": 1.3366,
+        "test_rmse": 1.31777,
+        "fit_time_sec": 0.0087,
+        "fit_time_ms": 8.71,
+        "infer_ms_per_1k": 0.589,
+        "effective_degree": 2,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 2, Deg 4)": {
+        "train_r2": 0.93826,
+        "test_r2": 0.93443,
+        "train_rmse": 1.21358,
+        "test_rmse": 1.22988,
+        "fit_time_sec": 0.0174,
+        "fit_time_ms": 17.42,
+        "infer_ms_per_1k": 2.235,
+        "effective_degree": 4,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 3, Deg 8)": {
+        "train_r2": 0.94434,
+        "test_r2": 0.93959,
+        "train_rmse": 1.15225,
+        "test_rmse": 1.18055,
+        "fit_time_sec": 0.0261,
+        "fit_time_ms": 26.12,
+        "infer_ms_per_1k": 3.922,
+        "effective_degree": 8,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 4, Deg 16)": {
+        "train_r2": 0.94757,
+        "test_r2": 0.94204,
+        "train_rmse": 1.11828,
+        "test_rmse": 1.15637,
+        "fit_time_sec": 0.0348,
+        "fit_time_ms": 34.83,
+        "infer_ms_per_1k": 5.461,
+        "effective_degree": 16,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 5, Deg 32)": {
+        "train_r2": 0.94918,
+        "test_r2": 0.94257,
+        "train_rmse": 1.10103,
+        "test_rmse": 1.15102,
+        "fit_time_sec": 0.0435,
+        "fit_time_ms": 43.54,
+        "infer_ms_per_1k": 7.094,
+        "effective_degree": 32,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Kernel (Stage 4, Deg 16+RFF)": {
+        "train_r2": 0.96367,
+        "test_r2": 0.95937,
+        "train_rmse": 0.93092,
+        "test_rmse": 0.96821,
+        "fit_time_sec": 0.042,
+        "fit_time_ms": 42.01,
+        "infer_ms_per_1k": 5.699,
+        "effective_degree": "16 + Harmonic RFF",
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "XGBoost (100 Trees)": {
+        "train_r2": 0.99591,
+        "test_r2": 0.98772,
+        "train_rmse": 0.3122,
+        "test_rmse": 0.53231,
+        "fit_time_sec": 0.3355,
+        "fit_time_ms": 335.48,
+        "infer_ms_per_1k": 2.117,
+        "effective_degree": "Gradient Boosted Trees",
+        "approach": "Greedy Histogram Tree Splitting"
+      },
+      "LightGBM (100 Trees)": {
+        "train_r2": 0.99504,
+        "test_r2": 0.98924,
+        "train_rmse": 0.34396,
+        "test_rmse": 0.49824,
+        "fit_time_sec": 0.1493,
+        "fit_time_ms": 149.3,
+        "infer_ms_per_1k": 1.079,
+        "effective_degree": "Gradient Boosted Trees",
+        "approach": "Leaf-wise Tree Splitting"
+      },
+      "FT-Transformer (Deep Attention)": {
+        "train_r2": 0.99799,
+        "test_r2": 0.99799,
+        "train_rmse": 0.21907,
+        "test_rmse": 0.21554,
+        "fit_time_sec": 5.4052,
+        "fit_time_ms": 5405.21,
+        "infer_ms_per_1k": 0.408,
+        "effective_degree": "Neural Attention (35 ep)",
+        "approach": "Iterative Backprop (AdamW)"
+      }
+    },
+    "dsn_depth_progression": [
+      {
+        "stage": 1,
+        "effective_degree": 2,
+        "train_r2": 0.9251,
+        "test_r2": 0.92473,
+        "test_rmse": 1.31777,
+        "cumulative_fit_ms": 8.71
+      },
+      {
+        "stage": 2,
+        "effective_degree": 4,
+        "train_r2": 0.93826,
+        "test_r2": 0.93443,
+        "test_rmse": 1.22988,
+        "cumulative_fit_ms": 17.42
+      },
+      {
+        "stage": 3,
+        "effective_degree": 8,
+        "train_r2": 0.94434,
+        "test_r2": 0.93959,
+        "test_rmse": 1.18055,
+        "cumulative_fit_ms": 26.12
+      },
+      {
+        "stage": 4,
+        "effective_degree": 16,
+        "train_r2": 0.94757,
+        "test_r2": 0.94204,
+        "test_rmse": 1.15637,
+        "cumulative_fit_ms": 34.83
+      },
+      {
+        "stage": 5,
+        "effective_degree": 32,
+        "train_r2": 0.94918,
+        "test_r2": 0.94257,
+        "test_rmse": 1.15102,
+        "cumulative_fit_ms": 43.54
+      }
+    ]
+  },
+  "california": {
+    "dataset": "california",
+    "n_train": 16512,
+    "n_test": 4128,
+    "n_features": 8,
+    "y_mean": 2.071946937378876,
+    "y_std": 1.1561912522543263,
+    "models": {
+      "Ridge Linear (Deg 1)": {
+        "train_r2": 0.61253,
+        "test_r2": 0.57623,
+        "train_rmse": 0.71969,
+        "test_rmse": 0.74519,
+        "fit_time_sec": 0.0013,
+        "fit_time_ms": 1.28,
+        "infer_ms_per_1k": 0.011,
+        "effective_degree": 1,
+        "approach": "Closed-Form OLS"
+      },
+      "DSN-Poly (Stage 1, Deg 2)": {
+        "train_r2": 0.70035,
+        "test_r2": 0.66836,
+        "train_rmse": 0.6329,
+        "test_rmse": 0.65923,
+        "fit_time_sec": 0.0074,
+        "fit_time_ms": 7.41,
+        "infer_ms_per_1k": 0.199,
+        "effective_degree": 2,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 2, Deg 4)": {
+        "train_r2": 0.73786,
+        "test_r2": 0.70364,
+        "train_rmse": 0.59196,
+        "test_rmse": 0.62317,
+        "fit_time_sec": 0.0148,
+        "fit_time_ms": 14.83,
+        "infer_ms_per_1k": 0.835,
+        "effective_degree": 4,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 3, Deg 8)": {
+        "train_r2": 0.7575,
+        "test_r2": 0.72353,
+        "train_rmse": 0.56935,
+        "test_rmse": 0.6019,
+        "fit_time_sec": 0.0222,
+        "fit_time_ms": 22.24,
+        "infer_ms_per_1k": 1.454,
+        "effective_degree": 8,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 4, Deg 16)": {
+        "train_r2": 0.76365,
+        "test_r2": 0.72907,
+        "train_rmse": 0.56209,
+        "test_rmse": 0.59584,
+        "fit_time_sec": 0.0297,
+        "fit_time_ms": 29.65,
+        "infer_ms_per_1k": 2.091,
+        "effective_degree": 16,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Poly (Stage 5, Deg 32)": {
+        "train_r2": 0.76584,
+        "test_r2": 0.72893,
+        "train_rmse": 0.55948,
+        "test_rmse": 0.596,
+        "fit_time_sec": 0.0371,
+        "fit_time_ms": 37.07,
+        "infer_ms_per_1k": 2.689,
+        "effective_degree": 32,
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "DSN-Kernel (Stage 4, Deg 16+RFF)": {
+        "train_r2": 0.7674,
+        "test_r2": 0.73203,
+        "train_rmse": 0.55761,
+        "test_rmse": 0.59258,
+        "fit_time_sec": 0.0359,
+        "fit_time_ms": 35.87,
+        "infer_ms_per_1k": 2.177,
+        "effective_degree": "16 + Harmonic RFF",
+        "approach": "Closed-Form Boosting (Zero Backprop)"
+      },
+      "XGBoost (100 Trees)": {
+        "train_r2": 0.89819,
+        "test_r2": 0.82865,
+        "train_rmse": 0.36892,
+        "test_rmse": 0.47385,
+        "fit_time_sec": 0.2983,
+        "fit_time_ms": 298.32,
+        "infer_ms_per_1k": 1.878,
+        "effective_degree": "Gradient Boosted Trees",
+        "approach": "Greedy Histogram Tree Splitting"
+      },
+      "LightGBM (100 Trees)": {
+        "train_r2": 0.88361,
+        "test_r2": 0.83867,
+        "train_rmse": 0.39445,
+        "test_rmse": 0.45979,
+        "fit_time_sec": 0.1501,
+        "fit_time_ms": 150.11,
+        "infer_ms_per_1k": 0.716,
+        "effective_degree": "Gradient Boosted Trees",
+        "approach": "Leaf-wise Tree Splitting"
+      },
+      "FT-Transformer (Deep Attention)": {
+        "train_r2": 0.78015,
+        "test_r2": 0.7649,
+        "train_rmse": 0.54212,
+        "test_rmse": 0.55505,
+        "fit_time_sec": 11.2379,
+        "fit_time_ms": 11237.86,
+        "infer_ms_per_1k": 0.185,
+        "effective_degree": "Neural Attention (35 ep)",
+        "approach": "Iterative Backprop (AdamW)"
+      }
+    },
+    "dsn_depth_progression": [
+      {
+        "stage": 1,
+        "effective_degree": 2,
+        "train_r2": 0.70035,
+        "test_r2": 0.66836,
+        "test_rmse": 0.65923,
+        "cumulative_fit_ms": 7.41
+      },
+      {
+        "stage": 2,
+        "effective_degree": 4,
+        "train_r2": 0.73786,
+        "test_r2": 0.70364,
+        "test_rmse": 0.62317,
+        "cumulative_fit_ms": 14.83
+      },
+      {
+        "stage": 3,
+        "effective_degree": 8,
+        "train_r2": 0.7575,
+        "test_r2": 0.72353,
+        "test_rmse": 0.6019,
+        "cumulative_fit_ms": 22.24
+      },
+      {
+        "stage": 4,
+        "effective_degree": 16,
+        "train_r2": 0.76365,
+        "test_r2": 0.72907,
+        "test_rmse": 0.59584,
+        "cumulative_fit_ms": 29.65
+      },
+      {
+        "stage": 5,
+        "effective_degree": 32,
+        "train_r2": 0.76584,
+        "test_r2": 0.72893,
+        "test_rmse": 0.596,
+        "cumulative_fit_ms": 37.07
+      }
+    ]
+  }
+}

@@ -1267,3 +1267,162 @@ class SequenceTransformer(nn.Module):
         return self.head(x)  # (B, T, vocab_size)
 
 
+# =============================================================================
+# DEEP CLOSED-FORM BOOSTING & SOLVABLE CASCADE (Phase 7 / EXP-09)
+# =============================================================================
+
+def compute_poly2_features(U: torch.Tensor, clip_val: float = 4.0) -> torch.Tensor:
+    """
+    Computes degree-2 polynomial expansion with outlier clipping:
+    phi_2(U) = [U, U^2, U_i * U_j (i < j)].
+    Clipping prevents numerical blowup in deep cascades with high-order terms.
+    """
+    U_clipped = torch.clamp(U, -clip_val, clip_val)
+    N, P = U_clipped.shape
+    cols = [U_clipped, U_clipped ** 2]
+    for i in range(P):
+        for j in range(i + 1, P):
+            cols.append(U_clipped[:, i : i + 1] * U_clipped[:, j : j + 1])
+    return torch.cat(cols, dim=-1)
+
+
+class DeepSolvableCascade(nn.Module):
+    """
+    Deep Closed-Form Boosting / Deep Solvable Network (DSN).
+
+    Cascades analytical solvable regression blocks in series without backpropagation:
+    - Stage 1 (Degree 2): Expands raw features X into quadratic space Phi_1 = phi_2(X).
+      Solves W_1* = (Phi_1^T Phi_1 + lambda*I)^{-1} Phi_1^T y via closed-form Ridge.
+      Residual r_1 = y - Phi_1 W_1*.
+      Latent representation Z_1 is formed from top principal components of Phi_1.
+    - Stage 2 (Degree 4): Input U_2 = [X, Z_1]. Since Z_1 ~ X^2, quadratic expansion
+      Phi_2 = phi_2(U_2) produces cross-terms (X^2)^2 ~ X^4 (Degree 4 interactions!).
+      Solves W_2* on residual r_1. Updates r_2 = r_1 - eta * Phi_2 W_2*.
+    - Stage L (Degree 2^L): Cascading L stages reaches polynomial degree 2^L in
+      strictly closed-form forward passes with zero gradient descent.
+    """
+
+    def __init__(
+        self,
+        n_stages: int = 4,
+        d_latent: int = 8,
+        shrinkage: float = 0.5,
+        lambda_reg: float = 1e-3,
+        clip_val: float = 4.0,
+        use_rff: bool = False,
+        n_rff: int = 32,
+    ):
+        super().__init__()
+        self.n_stages = n_stages
+        self.d_latent = d_latent
+        self.shrinkage = shrinkage
+        self.lambda_reg = lambda_reg
+        self.clip_val = clip_val
+        self.use_rff = use_rff
+        self.n_rff = n_rff
+        self.stages = []
+
+    def fit(self, X: torch.Tensor, y: torch.Tensor) -> "DeepSolvableCascade":
+        """
+        Fits all stages sequentially in closed form.
+        Takes X: (N, d), y: (N, 1) or (N,).
+        """
+        if y.ndim == 1:
+            y = y.unsqueeze(-1)
+        device = X.device
+        N, d = X.shape
+        curr_res = y.clone()
+        prev_Z = None
+
+        self.stages = []
+        for stage in range(self.n_stages):
+            if stage == 0:
+                U = X
+            else:
+                U = torch.cat([X, prev_Z], dim=-1)
+
+            Phi = compute_poly2_features(U, self.clip_val)
+            rff_W = None
+            if self.use_rff:
+                torch.manual_seed(42 + stage)
+                rff_W = torch.randn(U.shape[1], self.n_rff // 2, device=device) * 0.5
+                proj = torch.matmul(torch.clamp(U, -self.clip_val, self.clip_val), rff_W)
+                rff = torch.cat([torch.sin(proj), torch.cos(proj)], dim=-1)
+                Phi = torch.cat([Phi, rff], dim=-1)
+
+            D = Phi.shape[1]
+            G = torch.matmul(Phi.T, Phi) + (self.lambda_reg * N) * torch.eye(D, device=device)
+            rhs = torch.matmul(Phi.T, curr_res)
+            W = torch.linalg.solve(G, rhs)
+
+            pred_stage = torch.matmul(Phi, W)
+            step_shrink = 1.0 if stage == 0 else self.shrinkage
+            curr_res = curr_res - step_shrink * pred_stage
+
+            Phi_mean = Phi.mean(dim=0, keepdim=True)
+            Phi_centered = Phi - Phi_mean
+            cov = torch.matmul(Phi_centered.T, Phi_centered) / N
+            eigvals, eigvecs = torch.linalg.eigh(cov)
+
+            k = max(1, self.d_latent - 1)
+            top_vecs = eigvecs[:, -k:]
+            Z_pca_raw = torch.matmul(Phi_centered, top_vecs)
+            pca_scale = Z_pca_raw.std(dim=0, keepdim=True) + 1e-6
+            Z_pca = torch.tanh(Z_pca_raw / pca_scale)
+
+            pred_scale = pred_stage.std() + 1e-6
+            pred_norm = torch.tanh(pred_stage / pred_scale)
+            prev_Z = torch.cat([pred_norm, Z_pca], dim=-1)
+
+            stage_info = {
+                "W": W,
+                "step_shrink": step_shrink,
+                "Phi_mean": Phi_mean,
+                "top_vecs": top_vecs,
+                "pca_scale": pca_scale,
+                "pred_scale": pred_scale,
+                "rff_W": rff_W,
+                "effective_degree": 2 ** (stage + 1),
+            }
+            self.stages.append(stage_info)
+
+        return self
+
+    def predict(self, X: torch.Tensor, max_stages: int = None) -> torch.Tensor:
+        """
+        Inference pass evaluating the cascade up to max_stages.
+        """
+        N = X.shape[0]
+        device = X.device
+        y_pred = torch.zeros(N, 1, device=device)
+        prev_Z = None
+        stages_to_run = self.stages if max_stages is None else self.stages[:max_stages]
+
+        for stage, s in enumerate(stages_to_run):
+            if stage == 0:
+                U = X
+            else:
+                U = torch.cat([X, prev_Z], dim=-1)
+
+            Phi = compute_poly2_features(U, self.clip_val)
+            if self.use_rff and s["rff_W"] is not None:
+                proj = torch.matmul(torch.clamp(U, -self.clip_val, self.clip_val), s["rff_W"])
+                rff = torch.cat([torch.sin(proj), torch.cos(proj)], dim=-1)
+                Phi = torch.cat([Phi, rff], dim=-1)
+
+            pred_stage = torch.matmul(Phi, s["W"])
+            y_pred = y_pred + s["step_shrink"] * pred_stage
+
+            Phi_centered = Phi - s["Phi_mean"]
+            Z_pca_raw = torch.matmul(Phi_centered, s["top_vecs"])
+            Z_pca = torch.tanh(Z_pca_raw / s["pca_scale"])
+            pred_norm = torch.tanh(pred_stage / s["pred_scale"])
+            prev_Z = torch.cat([pred_norm, Z_pca], dim=-1)
+
+        return y_pred
+
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        return self.predict(X)
+
+
+
