@@ -1,0 +1,245 @@
+{
+  "experiment_id": "EXP-18-QWEN-VALIDATION",
+  "model_id": "Qwen/Qwen3.5-0.8B-Base",
+  "academic_benchmarks": {
+    "mmlu_arc_pct": {
+      "reported_qwen_baseline": 42.3,
+      "original_softmax": 100.0,
+      "flash_ols_linearized": 20.0,
+      "parity_ratio": 0.2
+    },
+    "gsm8k_math_pct": {
+      "reported_qwen_baseline": 49.6,
+      "original_softmax": 0.0,
+      "flash_ols_linearized": 0.0,
+      "parity_ratio": 0.0
+    },
+    "humaneval_coding": {
+      "syntax_valid_pct": {
+        "original_softmax": 0.0,
+        "flash_ols_linearized": 40.0
+      },
+      "tests_passed_pct": {
+        "reported_qwen_baseline": 35.4,
+        "original_softmax": 0.0,
+        "flash_ols_linearized": 40.0
+      }
+    }
+  },
+  "niah_stress_test": {
+    "lengths": [
+      1024,
+      2048,
+      4096,
+      8192,
+      16384,
+      32768
+    ],
+    "depths": [
+      0.1,
+      0.5,
+      0.9
+    ],
+    "softmax": [],
+    "flash_ols": [
+      {
+        "target_len": 1024,
+        "actual_len": 1024,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 1803.54052734375,
+        "gen_time_s": 0.654494317000001,
+        "gen_text": "the secretized secret.\nThe secretized secret is a secretized secret.",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 1024,
+        "actual_len": 1024,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 1803.54052734375,
+        "gen_time_s": 0.6506791579999884,
+        "gen_text": "the constant.\nThe constant is a constant that is constant and does not change",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 1024,
+        "actual_len": 1024,
+        "depth": 0.9,
+        "success": false,
+        "oom": false,
+        "vram_mb": 1803.54052734375,
+        "gen_time_s": 0.6780112729999956,
+        "gen_text": "the secretized secret.\n.\n.\n.\n.\n.",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 2048,
+        "actual_len": 2048,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 2110.12646484375,
+        "gen_time_s": 0.7718273830000015,
+        "gen_text": "a secret code.\nSecret code: Secret\nSecret\nSecret\nSecret",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 2048,
+        "actual_len": 2048,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 2110.12646484375,
+        "gen_time_s": 0.7734707319999927,
+        "gen_text": "a secret code.\nSecret code is a secret code.\nA secret code",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 2048,
+        "actual_len": 2048,
+        "depth": 0.9,
+        "success": false,
+        "oom": false,
+        "vram_mb": 2110.12646484375,
+        "gen_time_s": 0.7852548989999946,
+        "gen_text": "a secret code, and the secret code is a secret code.\nSecret code",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 4096,
+        "actual_len": 4096,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 2723.29833984375,
+        "gen_time_s": 0.9524092859999911,
+        "gen_text": "the mathematical code of the mathematical code. The mathematical code is the mathematical code of",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 4096,
+        "actual_len": 4096,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 2723.29833984375,
+        "gen_time_s": 0.9567400829999997,
+        "gen_text": "the mathematical code of the mathematical code. The mathematical code is the mathematical code of",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 4096,
+        "actual_len": 4096,
+        "depth": 0.9,
+        "success": false,
+        "oom": false,
+        "vram_mb": 2723.29833984375,
+        "gen_time_s": 0.9601705160000051,
+        "gen_text": "the mathematical code of the state code of the code code code code code code code",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 8192,
+        "actual_len": 8192,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 3948.76708984375,
+        "gen_time_s": 1.4050331929999942,
+        "gen_text": ": 12345678987698",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 8192,
+        "actual_len": 8192,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 3948.76708984375,
+        "gen_time_s": 1.420135719000001,
+        "gen_text": ": 12345678987698",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 8192,
+        "actual_len": 8192,
+        "depth": 0.9,
+        "success": false,
+        "oom": false,
+        "vram_mb": 3948.76708984375,
+        "gen_time_s": 1.4140572719999938,
+        "gen_text": ": 12345678987658",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 16384,
+        "actual_len": 16384,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 6402.32958984375,
+        "gen_time_s": 2.242094222999995,
+        "gen_text": "the secret key.\nThe secret code is a secret code.\nThe secret",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 16384,
+        "actual_len": 16384,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 6402.32958984375,
+        "gen_time_s": 2.2639709799999963,
+        "gen_text": "a complex, complex, and complex.\nThe secret code is a complex,",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 16384,
+        "actual_len": 16384,
+        "depth": 0.9,
+        "success": false,
+        "oom": false,
+        "vram_mb": 6402.32958984375,
+        "gen_time_s": 2.283673682,
+        "gen_text": "the secret key.\nThe secret code is a complex, complex, and complex",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 32768,
+        "actual_len": 32768,
+        "depth": 0.1,
+        "success": false,
+        "oom": false,
+        "vram_mb": 11307.70458984375,
+        "gen_time_s": 4.456296801999997,
+        "gen_text": "a critical piece of the mathematical universe. The mathematical universe of the universe is a",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 32768,
+        "actual_len": 32768,
+        "depth": 0.5,
+        "success": false,
+        "oom": false,
+        "vram_mb": 11307.70458984375,
+        "gen_time_s": 4.419625269999997,
+        "gen_text": "a critical piece of the mathematical universe. The mathematical universe of the universe is a",
+        "attn_state_kb": 204.0
+      },
+      {
+        "target_len": 32768,
+        "actual_len": 32768,
+        "depth": 0.9,
+        "success": false,
+        "oom": false,
+        "vram_mb": 11307.70458984375,
+        "gen_time_s": 4.395605138000008,
+        "gen_text": "a critical piece of the mathematical universe. The.\n.\n.\n.",
+        "attn_state_kb": 204.0
+      }
+    ]
+  }
+}
