@@ -1,0 +1,80 @@
+{
+  "california_housing": {
+    "Linear Ridge": {
+      "train_r2": 0.6125511245209703,
+      "test_r2": 0.5758549611440138,
+      "fit_time_ms": 9.353655041195452
+    },
+    "XGBoost": {
+      "train_r2": 0.8981875118144725,
+      "test_r2": 0.8286517355435431,
+      "fit_time_ms": 142.04424200579524
+    },
+    "LightGBM": {
+      "train_r2": 0.8740654355487658,
+      "test_r2": 0.8286174569131474,
+      "fit_time_ms": 115.26084796059877
+    },
+    "Standard DSN + ALS (EXP-10)": {
+      "train_r2": 0.7575753938581147,
+      "test_r2": 0.7215508852850125,
+      "fit_time_ms": 295.50754197407514
+    },
+    "TabPFN+TabICL Solvable (Stage 1)": {
+      "train_r2": 0.8084333111654086,
+      "test_r2": 0.793444650708643,
+      "fit_time_ms": 212.40440802648664,
+      "n_features": 484
+    },
+    "TabPFN+TabICL Full Cascade + ALS": {
+      "train_r2": 0.8251116126838317,
+      "test_r2": 0.813499847177262,
+      "fit_time_ms": 1322.208976955153,
+      "stages": 5
+    }
+  },
+  "kin8nm": {
+    "XGBoost": {
+      "train_r2": 0.9065188765525818,
+      "test_r2": 0.73698890209198,
+      "fit_time_ms": 99.60162895731628
+    },
+    "LightGBM": {
+      "train_r2": 0.8536223881946368,
+      "test_r2": 0.7359131518316728,
+      "fit_time_ms": 50.663581932894886
+    },
+    "Standard DSN + ALS (EXP-10)": {
+      "train_r2": 0.7808929085731506,
+      "test_r2": 0.7387226819992065,
+      "fit_time_ms": 112.52048192545772
+    },
+    "TabPFN+TabICL Full Cascade + ALS": {
+      "train_r2": 0.6088389158248901,
+      "test_r2": 0.5754814147949219,
+      "fit_time_ms": 233.01695589907467
+    }
+  },
+  "friedman1": {
+    "XGBoost": {
+      "train_r2": 0.9959137439727783,
+      "test_r2": 0.9877175092697144,
+      "fit_time_ms": 131.8399669835344
+    },
+    "LightGBM": {
+      "train_r2": 0.9947793825384005,
+      "test_r2": 0.988978941292923,
+      "fit_time_ms": 92.5366299925372
+    },
+    "Standard DSN + ALS (EXP-10)": {
+      "train_r2": 0.9491125345230103,
+      "test_r2": 0.9434595704078674,
+      "fit_time_ms": 175.64790905453265
+    },
+    "TabPFN+TabICL Full Cascade + ALS": {
+      "train_r2": 0.995654284954071,
+      "test_r2": 0.9948862195014954,
+      "fit_time_ms": 363.3875760715455
+    }
+  }
+}

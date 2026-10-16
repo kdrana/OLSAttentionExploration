@@ -6,9 +6,12 @@ Model architectures for FT-Transformer benchmark:
 """
 
 import math
+import numpy as np
 import torch
 import torch.nn as nn
+from sklearn.cluster import MiniBatchKMeans
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import QuantileTransformer, StandardScaler
 
 
 class FeatureTokenizer(nn.Module):
@@ -1488,6 +1491,238 @@ class DeepSolvableCascade(nn.Module):
             prev_Z = torch.cat([pred_norm, Z_pca], dim=-1)
 
         return y_pred
+
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        return self.predict(X)
+
+
+class TabularSplineAnchorSolvableModel(nn.Module):
+    """
+    Tabular Foundation Solvable Model incorporating TabPFN & TabICL principles for discontinuous tabular data:
+    1. TabPFN Quantile/Rank Normalization:
+       Eliminates extreme leverage points and normalizes marginal distributions,
+       stabilizing the condition number of the Gram matrix.
+    2. TabPFN / PLE Piecewise Linear Spline Knots:
+       Generates knot bucket hinges phi_k(x) = ReLU(x - t_k) at empirical quantiles,
+       providing piecewise linear decision boundaries similar to decision trees while
+       preserving global convexity and closed-form solvability.
+    3. TabICL In-Context Landmark Kernel Anchors:
+       Approximates row-to-row in-context sample attention via K landmark centroids:
+       kappa_k(x) = exp(-||x_anchor - c_k||^2 / (2 * sigma^2)).
+    4. TabICL Local Mixture of Experts (Location x Feature Interactions):
+       Crosses landmark attention weights with continuous features (kappa_k(x) * x_j),
+       forming a closed-form Geographically Weighted Regression / Local Expert Mixture.
+    5. Multi-Stage Closed-Form Residual Boosting + ALS Refinement:
+       Closed-form greedy stage boosting combined with alternating least squares (ALS)
+       bi-convex coordinate descent to reach near-GBDT accuracy in milliseconds.
+    """
+
+    def __init__(
+        self,
+        n_stages: int = 5,
+        n_knots: int = 8,
+        n_anchors: int = 96,
+        anchor_feature_indices: list[int] = None,
+        anchor_sigmas: list[float] = None,
+        interaction_feature_indices: list[int] = None,
+        lambda_reg: float = 1e-3,
+        shrinkage: float = 0.5,
+        use_als: bool = True,
+        n_als_cycles: int = 5,
+        n_quantiles: int = 2000,
+        random_state: int = 42,
+    ):
+        super().__init__()
+        self.n_stages = n_stages
+        self.n_knots = n_knots
+        self.n_anchors = n_anchors
+        self.anchor_feature_indices = anchor_feature_indices
+        self.anchor_sigmas = anchor_sigmas or [0.10, 0.25]
+        self.interaction_feature_indices = interaction_feature_indices
+        self.lambda_reg = lambda_reg
+        self.shrinkage = shrinkage
+        self.use_als = use_als
+        self.n_als_cycles = n_als_cycles
+        self.n_quantiles = n_quantiles
+        self.random_state = random_state
+
+        self.qt = None
+        self.anchor_scaler = None
+        self.centroids = None
+        self.knots = None
+        self.stages = []
+
+    def _extract_anchor_coords(self, X_raw: np.ndarray, fit: bool = False) -> torch.Tensor:
+        if self.anchor_feature_indices is not None:
+            coords = X_raw[:, self.anchor_feature_indices]
+        else:
+            coords = X_raw
+        if fit:
+            self.anchor_scaler = StandardScaler()
+            coords_norm = self.anchor_scaler.fit_transform(coords)
+        else:
+            coords_norm = self.anchor_scaler.transform(coords)
+        return torch.tensor(coords_norm, dtype=torch.float32)
+
+    def _compute_features(self, X_qt: torch.Tensor, coords_norm: torch.Tensor, prev_pred: torch.Tensor = None) -> torch.Tensor:
+        cols = [X_qt]
+
+        # 1. TabPFN Spline Knots: ReLU(x - t_k)
+        if self.knots is not None:
+            for k in range(self.knots.shape[0]):
+                cols.append(torch.relu(X_qt - self.knots[k : k + 1, :]))
+
+        # 2. Pairwise feature interactions
+        d = X_qt.shape[1]
+        for i in range(d):
+            for j in range(i + 1, d):
+                cols.append(X_qt[:, i : i + 1] * X_qt[:, j : j + 1])
+
+        # 3. TabICL Landmark In-Context Anchors
+        if self.centroids is not None:
+            dist = torch.cdist(coords_norm, self.centroids)
+            rbfs = []
+            for sigma in self.anchor_sigmas:
+                rbf = torch.exp(-(dist**2) / (2.0 * sigma**2))
+                rbfs.append(rbf)
+                cols.append(rbf)
+
+            # Local interactions with specified features (Mixture of Local Experts)
+            inter_indices = (
+                self.interaction_feature_indices
+                if self.interaction_feature_indices is not None
+                else list(range(min(d, 3)))
+            )
+            primary_rbf = rbfs[-1]  # Medium scale RBF has broader geographic coverage
+            for idx in inter_indices:
+                cols.append(primary_rbf * X_qt[:, idx : idx + 1])
+
+            # If multi-stage residual, cross residual prediction with anchors
+            if prev_pred is not None:
+                pred_norm = torch.tanh(prev_pred / (prev_pred.std() + 1e-6))
+                cols.append(pred_norm)
+                cols.append(primary_rbf * pred_norm)
+                for idx in inter_indices:
+                    cols.append(pred_norm * X_qt[:, idx : idx + 1])
+
+        return torch.cat(cols, dim=-1)
+
+    def fit(self, X: torch.Tensor | np.ndarray, y: torch.Tensor | np.ndarray):
+        import numpy as np
+        if isinstance(X, torch.Tensor):
+            X_raw = X.detach().cpu().numpy()
+        else:
+            X_raw = np.asarray(X)
+
+        if isinstance(y, torch.Tensor):
+            y_train_norm = y.clone()
+        else:
+            y_train_norm = torch.tensor(y, dtype=torch.float32)
+
+        if y_train_norm.ndim == 1:
+            y_train_norm = y_train_norm.unsqueeze(-1)
+
+        N, d = X_raw.shape
+        device = y_train_norm.device
+
+        # Fit Quantile Transformer (TabPFN)
+        self.qt = QuantileTransformer(
+            n_quantiles=min(self.n_quantiles, N),
+            output_distribution="normal",
+            random_state=self.random_state,
+        )
+        X_tr_qt = torch.tensor(
+            self.qt.fit_transform(X_raw), dtype=torch.float32, device=device
+        )
+
+        # Fit TabICL Anchor Centroids
+        coords_norm = self._extract_anchor_coords(X_raw, fit=True).to(device)
+        kmeans = MiniBatchKMeans(
+            n_clusters=self.n_anchors,
+            random_state=self.random_state,
+            batch_size=min(512, N),
+        )
+        kmeans.fit(coords_norm.cpu().numpy())
+        self.centroids = torch.tensor(
+            kmeans.cluster_centers_, dtype=torch.float32, device=device
+        )
+
+        # Fit Spline Knots (TabPFN / PLE)
+        if self.n_knots > 0:
+            quantiles = torch.linspace(0.05, 0.95, self.n_knots, device=device)
+            self.knots = torch.quantile(X_tr_qt, quantiles, dim=0)
+
+        # Multi-stage boosting
+        self.stages = []
+        curr_res = y_train_norm.clone()
+        prev_pred = None
+        Phis_tr = []
+
+        for s in range(self.n_stages):
+            Phi_tr = self._compute_features(X_tr_qt, coords_norm, prev_pred=prev_pred)
+            Phis_tr.append(Phi_tr)
+
+            D = Phi_tr.shape[1]
+            reg = self.lambda_reg * N
+            G = torch.matmul(Phi_tr.T, Phi_tr) + reg * torch.eye(D, device=device)
+            rhs = torch.matmul(Phi_tr.T, curr_res)
+            W = torch.linalg.solve(G, rhs)
+
+            pred_stage = torch.matmul(Phi_tr, W)
+            step_shrink = 1.0 if s == 0 else self.shrinkage
+            curr_res = curr_res - step_shrink * pred_stage
+            prev_pred = pred_stage
+
+            self.stages.append({
+                "W": W,
+                "W_greedy": W.clone(),
+                "step_shrink": step_shrink,
+                "D": D,
+            })
+
+        # ALS Refinement
+        if self.use_als and self.n_stages > 1:
+            inv_Grams = []
+            for l in range(self.n_stages):
+                Phi = Phis_tr[l]
+                D = Phi.shape[1]
+                G = torch.matmul(Phi.T, Phi) + (self.lambda_reg * N) * torch.eye(D, device=device)
+                inv_Grams.append(torch.linalg.inv(G))
+
+            shrinkages = [st["step_shrink"] for st in self.stages]
+            for _ in range(self.n_als_cycles):
+                for l in range(self.n_stages):
+                    pred_others = sum(
+                        shrinkages[m] * torch.matmul(Phis_tr[m], self.stages[m]["W"])
+                        for m in range(self.n_stages)
+                        if m != l
+                    )
+                    target = y_train_norm - pred_others
+                    rhs = torch.matmul(Phis_tr[l].T, target / shrinkages[l])
+                    self.stages[l]["W"] = torch.matmul(inv_Grams[l], rhs)
+
+        return self
+
+    def predict(self, X: torch.Tensor | np.ndarray) -> torch.Tensor:
+        import numpy as np
+        if isinstance(X, torch.Tensor):
+            X_raw = X.detach().cpu().numpy()
+        else:
+            X_raw = np.asarray(X)
+
+        X_qt = torch.tensor(self.qt.transform(X_raw), dtype=torch.float32)
+        coords_norm = self._extract_anchor_coords(X_raw, fit=False)
+
+        pred_total = torch.zeros(X_raw.shape[0], 1)
+        prev_pred = None
+
+        for s in range(self.n_stages):
+            Phi = self._compute_features(X_qt, coords_norm, prev_pred=prev_pred)
+            pred_stage = torch.matmul(Phi, self.stages[s]["W"])
+            pred_total = pred_total + self.stages[s]["step_shrink"] * pred_stage
+            prev_pred = torch.matmul(Phi, self.stages[s]["W_greedy"])
+
+        return pred_total
 
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         return self.predict(X)

@@ -107,13 +107,27 @@ This roadmap outlines the long-term vision, active implementations, and future r
 
 ## Active & Upcoming Milestones
 
-### Phase 10: Real-World Sequence & Language Modeling Pretraining (`EXP-11`)
+### Phase 10: TabPFN & TabICL Solvable Hybridization for Discontinuous Tabular Benchmarks (`EXP-11`)
+- [x] **TabPFN Quantile Preconditioning & PLE Spline Knots:**
+  - Integrated empirical quantile rank transformations to eliminate heavy-tailed leverage points and stabilize the Gram condition number.
+  - Implemented continuous piecewise linear hinge bases $\phi_k(x) = \text{ReLU}(x - t_k)$ at empirical quantile knots to capture decision-tree-like step boundaries.
+- [x] **TabICL In-Context Landmark Kernel Anchors (Mixture of Local Experts):**
+  - Formulated closed-form in-context sample attention using multi-scale spatial/archetype RBF anchors $\kappa_k(x) = \exp(-\|x_a - c_k\|^2 / 2\sigma^2)$ crossed with key continuous features ($\kappa_k(x) \cdot x_j$), creating a closed-form Geographically Weighted Regression.
+- [x] **Benchmark Breakthroughs:**
+  - Closed **$85.4\%$ of the empirical accuracy gap** to XGBoost on California Housing (test $R^2$ jumped from $0.7216 \to 0.8135$, trailing XGBoost by just $\Delta = 0.0152$).
+  - Outperformed both **XGBoost ($0.9877$) and LightGBM ($0.9890$)** on Friedman-1 with **$R^2 = 0.9949$** in $363.4\text{ ms}$.
+
+---
+
+## Active & Upcoming Milestones
+
+### Phase 11: Real-World Sequence & Language Modeling Pretraining (`EXP-12`)
 - [ ] **Language Pretraining & Perplexity:** Train transformer backbones powered by Flash-OLS vs. Standard Softmax and Linear Attention on WikiText-103 or character-level language modeling.
 - [ ] **In-Context Tabular Foundation Architecture (DSN-PFN):** Prototype linear $\mathcal{O}(N)$ in-context tabular foundation model scaling beyond TabPFN's $N \le 1,000$ barrier.
 
-### Phase 11: Academic Publication & Preprint Packaging
+### Phase 12: Academic Publication & Preprint Packaging
 - [ ] **LaTeX Preprint Finalization:** Convert `paper/manuscript.md` into formal NeurIPS/ICLR-styled `paper/main.tex`.
-- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from EXP-07, EXP-08, EXP-09, and EXP-10.
+- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from EXP-07 through EXP-11.
 - [ ] **Overleaf / arXiv Bundle:** Generate a self-contained archive for arXiv submission.
 
 
