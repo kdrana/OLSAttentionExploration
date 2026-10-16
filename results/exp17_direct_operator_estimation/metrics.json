@@ -1,0 +1,118 @@
+{
+  "experiment_id": "EXP-17-DIRECT-OPERATOR",
+  "model_id": "Qwen/Qwen3.5-0.8B-Base",
+  "target_layer_idx": 3,
+  "rank": 16,
+  "fitting_time_s": 8.344953457999999,
+  "fitting_steps": 1000,
+  "final_val_r2": 0.533203125,
+  "final_val_cos_sim": 0.7826286107301712,
+  "trace": [
+    {
+      "step": 0,
+      "train_loss": 2.181465744972229,
+      "val_r2": -1.88671875,
+      "val_cos_sim": 0.11051613092422485
+    },
+    {
+      "step": 100,
+      "train_loss": 0.09939084574580193,
+      "val_r2": 0.3779296875,
+      "val_cos_sim": 0.7373974621295929
+    },
+    {
+      "step": 200,
+      "train_loss": 0.05549544468522072,
+      "val_r2": 0.4619140625,
+      "val_cos_sim": 0.7556397616863251
+    },
+    {
+      "step": 300,
+      "train_loss": 0.043006062507629395,
+      "val_r2": 0.4970703125,
+      "val_cos_sim": 0.7657180428504944
+    },
+    {
+      "step": 400,
+      "train_loss": 0.038157761096954346,
+      "val_r2": 0.5048828125,
+      "val_cos_sim": 0.7701209932565689
+    },
+    {
+      "step": 500,
+      "train_loss": 0.03231610730290413,
+      "val_r2": 0.5146484375,
+      "val_cos_sim": 0.7749427556991577
+    },
+    {
+      "step": 600,
+      "train_loss": 0.03695473726838827,
+      "val_r2": 0.5244140625,
+      "val_cos_sim": 0.7796728610992432
+    },
+    {
+      "step": 700,
+      "train_loss": 0.02377726510167122,
+      "val_r2": 0.529296875,
+      "val_cos_sim": 0.7807629108428955
+    },
+    {
+      "step": 800,
+      "train_loss": 0.03189079090952873,
+      "val_r2": 0.53125,
+      "val_cos_sim": 0.7815162986516953
+    },
+    {
+      "step": 900,
+      "train_loss": 0.03774661384522915,
+      "val_r2": 0.5341796875,
+      "val_cos_sim": 0.7821281254291534
+    },
+    {
+      "step": 1000,
+      "train_loss": 0.03307829424738884,
+      "val_r2": 0.533203125,
+      "val_cos_sim": 0.7826286107301712
+    }
+  ],
+  "domain_fidelity": {
+    "code": {
+      "r2": 0.9443359375,
+      "cosine_sim": 0.9702894687652588
+    },
+    "science": {
+      "r2": 0.9619140625,
+      "cosine_sim": 0.9776799231767654
+    },
+    "math": {
+      "r2": 0.96484375,
+      "cosine_sim": 0.9797815382480621
+    },
+    "language": {
+      "r2": 0.533203125,
+      "cosine_sim": 0.7826286107301712
+    }
+  },
+  "plug_back_completions": [
+    {
+      "category": "Science (Sun)",
+      "prompt": "The sun is a star located at the center of the Solar System. It is composed primarily of",
+      "completion": "The sun is a star located at the center of the Solar System. It is composed primarily of hydrogen and helium, with trace amounts of heavier elements. The Sun is a massive, luminous ball of plasma, and it is the only star that is large enough to be seen from Earth. The Sun is a star that is the center"
+    },
+    {
+      "category": "Python Code",
+      "prompt": "def binary_search(arr, target):\n    \"\"\"Return index of target in sorted arr.\"\"\"\n    low, high = 0, len(arr) - 1\n    while low <= high:\n",
+      "completion": "def binary_search(arr, target):     \"\"\"Return index of target in sorted arr.\"\"\"     low, high = 0, len(arr) - 1     while low <= high:         mid = (low + high) // 2         if arr[mid] == target:             return mid         elif arr[mid] < target:             low = mid + 1         else:             high"
+    },
+    {
+      "category": "Math Formula",
+      "prompt": "To calculate the area of a circle with radius r, the formula is",
+      "completion": "To calculate the area of a circle with radius r, the formula is \u03c0r\u00b2. This formula is derived from the area of a circle, which is given by A = \u03c0r\u00b2. The area of a circle is the space inside the circle, and it is calculated by multiplying the radius by itself and"
+    },
+    {
+      "category": "Story",
+      "prompt": "Once upon a time, there was a little bird named Pip who lived in a",
+      "completion": "Once upon a time, there was a little bird named Pip who lived in a very special place called the bird farm. This farm was like a big, colorful world with many different things.  One day, Pip was having a big party. He had a big cake and a big cup of milk. But he had"
+    }
+  ]
+}
