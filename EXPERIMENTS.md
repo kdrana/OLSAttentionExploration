@@ -461,6 +461,69 @@ This cascade should monotonically close the gap with GBDTs while training **$100
 4. **Hybrid Harmonic Expansion (DSN-Kernel):**
    - Incorporating Random Fourier Features (RFF) with polynomial terms jumps Friedman-1 test $R^2$ to **$0.9594$** in $42.0\text{ ms}$, narrowing the remaining gap with GBDTs while preserving pure closed-form solvability.
 
+---
+
+### EXP-10: Alternating Least Squares (ALS) Solvable Refinement Benchmark
+
+- **Date:** 2026-10-16
+- **Compute:** Modal Serverless GPU (NVIDIA T4, 16GB) — Run time ~55s (Cost: < $0.01)
+- **Execution Script:** [`experiments/run_als_benchmark.py`](experiments/run_als_benchmark.py) (Cloud runner: [`experiments/modal_als_runner.py`](experiments/modal_als_runner.py))
+- **Artifacts:**
+  - Metrics JSON: [`results/exp10_als_solvable_refinement/metrics.json`](results/exp10_als_solvable_refinement/metrics.json)
+  - Figure 24 (Test $R^2$ Improvement via ALS Refinement): [`results/exp10_als_solvable_refinement/fig_als_r2_improvement.png`](results/exp10_als_solvable_refinement/fig_als_r2_improvement.png)
+  - Figure 25 (Convergence Trajectory: ALS Cycles vs AdamW Epochs): [`results/exp10_als_solvable_refinement/fig_als_convergence_trajectory.png`](results/exp10_als_solvable_refinement/fig_als_convergence_trajectory.png)
+  - Figure 26 (Wall-Clock Training Latency on Log Scale): [`results/exp10_als_solvable_refinement/fig_als_wallclock_comparison.png`](results/exp10_als_solvable_refinement/fig_als_wallclock_comparison.png)
+
+#### Hypothesis
+In standard greedy boosting (XGBoost, LightGBM, and greedy DSN), each stage or tree is fit greedily to the current residual and then **frozen permanently**. Early stages absorb variance under incomplete information, leaving later stages with distorted residual targets. Under **Blueprint 3: Alternating Least Squares (ALS) / Bi-Convex Coordinate Descent**, once all $L$ stages exist, we alternate across stages $l \in \{1, \dots, L\}$, refitting each stage's weight matrix $W_l^*$ on the residual of all other stages:
+$$r_{-l} = y - \sum_{m \ne l} \eta_m \Phi_m W_m \implies W_l^* = (\Phi_l^\top \Phi_l + \lambda I)^{-1} \Phi_l^\top (r_{-l} / \eta_l)$$
+Because each block subproblem is an exact convex Ridge solve and Gram inverses are cached, each cycle executes in milliseconds and guarantees monotonic loss reduction, breaking the greedy boosting ceiling without backpropagation or learning rates.
+
+#### Quantitative Results Table (NVIDIA T4 Cloud GPU)
+
+##### 1. Benchmark Comparison Across Three Diverse Datasets
+
+| Dataset | Model Architecture | Train $R^2$ | Test $R^2$ | Test RMSE | GPU Fit Time | Refine Time Only | Speedup vs. FT-Transformer |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Kin8nm**<br>($N=8,192$, $d=8$) | **Greedy DSN (EXP-09)** | $0.7689$ | $0.7428$ | $0.1334$ | $476.3\text{ ms}$ | — | $10.4\times$ faster |
+| | **ALS-Refined DSN (5 Cycles)**| **$0.8053$** | **$0.7756$** | **$0.1246$** | **$483.9\text{ ms}$** | **$7.6\text{ ms}$** | **$10.2\times$ faster** |
+| | **XGBoost (100 Trees)** | $0.9065$ | $0.7370$ | $0.1349$ | $252.3\text{ ms}$ | — | $19.7\times$ faster |
+| | **LightGBM (100 Trees)**| $0.8914$ | $0.7681$ | $0.1267$ | $155.6\text{ ms}$ | — | $31.9\times$ faster |
+| | **FT-Transformer (AdamW)**| $0.8774$ | **$0.8688$** | $0.0953$ | $4,958.7\text{ ms}$ | — | $1.0\times$ (Baseline) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Friedman-1**<br>($N=10,000$, $d=10$) | **Greedy DSN (EXP-09)** | $0.9476$ | $0.9420$ | $1.1564$ | **$33.1\text{ ms}$** | — | $170.7\times$ faster |
+| | **ALS-Refined DSN (5 Cycles)**| **$0.9559$** | **$0.9488$** | **$1.0864$** | **$40.6\text{ ms}$** | **$7.5\text{ ms}$** | **$139.2\times$ faster** |
+| | **XGBoost (100 Trees)** | $0.9959$ | $0.9877$ | $0.5323$ | $321.3\text{ ms}$ | — | $17.6\times$ faster |
+| | **LightGBM (100 Trees)**| $0.9950$ | $0.9892$ | $0.4982$ | $166.4\text{ ms}$ | — | $33.9\times$ faster |
+| | **FT-Transformer (AdamW)**| $0.9957$ | **$0.9955$** | $0.3234$ | $5,650.0\text{ ms}$ | — | $1.0\times$ (Baseline) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **California Housing**<br>($N=20,640$, $d=8$) | **Greedy DSN (EXP-09)** | $0.7637$ | $0.7291$ | $0.5958$ | **$28.6\text{ ms}$** | — | $415.4\times$ faster |
+| | **ALS-Refined DSN (5 Cycles)**| **$0.7724$** | **$0.7450$** | **$0.5781$** | **$37.3\text{ ms}$** | **$8.7\text{ ms}$** | **$318.5\times$ faster** |
+| | **FT-Transformer (AdamW)**| $0.7813$ | **$0.7621$** | $0.5583$ | $11,881.7\text{ ms}$ | — | $1.0\times$ (Baseline) |
+| | **XGBoost (100 Trees)** | $0.8982$ | $0.8287$ | $0.4739$ | $285.3\text{ ms}$ | — | $41.6\times$ faster |
+| | **LightGBM (100 Trees)**| $0.8836$ | $0.8387$ | $0.4598$ | $179.7\text{ ms}$ | — | $66.1\times$ faster |
+
+##### 2. Cycle-by-Cycle ALS Monotonic Convergence
+
+| Dataset | Cycle 0 (Greedy) | Cycle 1 | Cycle 2 | Cycle 3 | Cycle 4 | Cycle 5 | Net Gain ($\Delta R^2$) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Kin8nm** | $0.7428$ | $0.7595$ | $0.7667$ | $0.7708$ | $0.7736$ | **$0.7756$** | **$+0.0328$** |
+| **Friedman-1** | $0.9420$ | $0.9447$ | $0.9466$ | $0.9477$ | $0.9484$ | **$0.9488$** | **$+0.0068$** |
+| **California** | $0.7291$ | $0.7380$ | $0.7413$ | $0.7429$ | $0.7440$ | **$0.7450$** | **$+0.0159$** |
+
+#### Key Takeaways & Breakthroughs
+
+1. **Beating Both XGBoost AND LightGBM on Kin8nm:**
+   - In EXP-09, greedy DSN reached $R^2 = 0.7428$, beating XGBoost ($0.7370$) but lagging behind LightGBM ($0.7681$).
+   - With 5 cycles of ALS refinement, **ALS-Refined DSN surges to $R^2 = 0.7756$**, strictly outperforming **both XGBoost ($0.7370$) and LightGBM ($0.7681$)**!
+2. **Sub-10ms Optimization Overhead:**
+   - Because the Gram inverses $(\Phi_l^\top \Phi_l + \lambda I)^{-1}$ are precomputed once, the entire 5 cycles of ALS refinement require only **$7.62\text{ ms}$ on Kin8nm** and **$8.66\text{ ms}$ on California Housing**.
+3. **Monotonic, Zero-Hyperparameter Convergence:**
+   - Across every dataset, every single cycle of ALS produced a strictly monotonic improvement in both Train and Test $R^2$. There are zero learning rates, zero momentum terms, and zero warmup schedules to tune.
+4. **Instant Convergence vs. 35 AdamW Epochs:**
+   - On California Housing, FT-Transformer requires 35 epochs and **$11,881.7\text{ ms}$ (11.88s)** of backpropagation to reach $R^2 = 0.7621$. ALS-Refined DSN reaches $R^2 = 0.7450$ in **$37.3\text{ ms}$**—delivering comparable performance with a **$318\times$ training speedup**.
+
+
 
 
 

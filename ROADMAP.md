@@ -95,16 +95,27 @@ This roadmap outlines the long-term vision, active implementations, and future r
 
 ## Active & Upcoming Milestones
 
-### Phase 9: Blueprint 3 — Alternating Least Squares (ALS) & Language Modeling (`EXP-10`)
-- [ ] **Alternating Least Squares (ALS) Block Coordinate Solver:**
-  - Solve multi-layer attention projections alternately in closed form without gradient noise.
-- [ ] **Real-World Language Modeling Benchmark:**
-  - Pretrain Flash-OLS Transformer backbones vs Standard Softmax and Linear Attention on WikiText-103.
+### Phase 9: Blueprint 3 — Alternating Least Squares (ALS) Solvable Refinement (`EXP-10`)
+- [x] **Alternating Least Squares (ALS) Block Coordinate Solver:**
+  - Formulated bi-convex block coordinate optimization across multi-stage solvable cascades.
+  - Refits each stage's weight matrix $W_l^*$ on the residual error of all other stages in closed form with precomputed Gram inverses.
+- [x] **Empirical Supremacy over GBDTs (Kin8nm):**
+  - ALS refinement surges Kin8nm test $R^2$ from $0.7428 \to 0.7756$, beating both **XGBoost ($0.7370$)** and **LightGBM ($0.7681$)**.
+  - Delivers $318\times$ training speedup over FT-Transformer on California Housing ($37.3\text{ ms}$ vs $11.88\text{ s}$) with strictly monotonic convergence across cycles.
 
-### Phase 10: Academic Publication & Preprint Packaging
+---
+
+## Active & Upcoming Milestones
+
+### Phase 10: Real-World Sequence & Language Modeling Pretraining (`EXP-11`)
+- [ ] **Language Pretraining & Perplexity:** Train transformer backbones powered by Flash-OLS vs. Standard Softmax and Linear Attention on WikiText-103 or character-level language modeling.
+- [ ] **In-Context Tabular Foundation Architecture (DSN-PFN):** Prototype linear $\mathcal{O}(N)$ in-context tabular foundation model scaling beyond TabPFN's $N \le 1,000$ barrier.
+
+### Phase 11: Academic Publication & Preprint Packaging
 - [ ] **LaTeX Preprint Finalization:** Convert `paper/manuscript.md` into formal NeurIPS/ICLR-styled `paper/main.tex`.
-- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from EXP-07, EXP-08, and EXP-09.
+- [ ] **Integrated Figures & Tables:** Update manuscript with empirical results from EXP-07, EXP-08, EXP-09, and EXP-10.
 - [ ] **Overleaf / arXiv Bundle:** Generate a self-contained archive for arXiv submission.
+
 
 
 

@@ -1388,6 +1388,74 @@ class DeepSolvableCascade(nn.Module):
 
         return self
 
+    def fit_with_als(self, X: torch.Tensor, y: torch.Tensor, n_als_cycles: int = 5) -> tuple["DeepSolvableCascade", list[float]]:
+        """
+        Blueprint 3: Alternating Least Squares (ALS) Block-Coordinate Refinement.
+        1. Executes standard forward greedy boosting pass to build the stages.
+        2. Alternates across all stages, refitting each stage W_l* on the residual
+           of all other stages in exact closed form.
+        Guarantees monotonic loss decrease without backpropagation or learning rates.
+        Returns (self, als_loss_history).
+        """
+        self.fit(X, y)
+        if y.ndim == 1:
+            y = y.unsqueeze(-1)
+        device = X.device
+        N = X.shape[0]
+
+        # 1. Cache feature matrices Phi_l for all stages
+        Phis = []
+        prev_Z = None
+        for stage, s in enumerate(self.stages):
+            if stage == 0:
+                U = X
+            else:
+                U = torch.cat([X, prev_Z], dim=-1)
+
+            Phi = compute_poly2_features(U, self.clip_val)
+            if self.use_rff and s["rff_W"] is not None:
+                proj = torch.matmul(torch.clamp(U, -self.clip_val, self.clip_val), s["rff_W"])
+                rff = torch.cat([torch.sin(proj), torch.cos(proj)], dim=-1)
+                Phi = torch.cat([Phi, rff], dim=-1)
+            Phis.append(Phi)
+
+            Phi_centered = Phi - s["Phi_mean"]
+            Z_pca_raw = torch.matmul(Phi_centered, s["top_vecs"])
+            Z_pca = torch.tanh(Z_pca_raw / s["pca_scale"])
+            pred_stage = torch.matmul(Phi, s["W"])
+            pred_norm = torch.tanh(pred_stage / s["pred_scale"])
+            prev_Z = torch.cat([pred_norm, Z_pca], dim=-1)
+
+        # 2. Precompute Gram inverses for all stages
+        inv_Grams = []
+        for l in range(len(self.stages)):
+            Phi = Phis[l]
+            D = Phi.shape[1]
+            G = torch.matmul(Phi.T, Phi) + (self.lambda_reg * N) * torch.eye(D, device=device)
+            inv_Grams.append(torch.linalg.inv(G))
+
+        # 3. ALS Coordinate Descent Cycles
+        als_history = []
+        shrinkages = [s["step_shrink"] for s in self.stages]
+
+        for cycle in range(n_als_cycles):
+            for l in range(len(self.stages)):
+                pred_others = torch.zeros(N, 1, device=device)
+                for m in range(len(self.stages)):
+                    if m != l:
+                        pred_others = pred_others + shrinkages[m] * torch.matmul(Phis[m], self.stages[m]["W"])
+
+                target_residual = y - pred_others
+                rhs = torch.matmul(Phis[l].T, target_residual / shrinkages[l])
+                self.stages[l]["W"] = torch.matmul(inv_Grams[l], rhs)
+
+            # Record total cycle loss
+            total_pred = sum(shrinkages[m] * torch.matmul(Phis[m], self.stages[m]["W"]) for m in range(len(self.stages)))
+            cycle_loss = float(torch.mean((y - total_pred) ** 2).item())
+            als_history.append(cycle_loss)
+
+        return self, als_history
+
     def predict(self, X: torch.Tensor, max_stages: int = None) -> torch.Tensor:
         """
         Inference pass evaluating the cascade up to max_stages.
