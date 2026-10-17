@@ -128,42 +128,82 @@ class CognitiveDualControlAttention(nn.Module):
         Requires zero hardcoded keywords and zero string decoding.
         """
         device = raw_key_states.device
-        hist_k_raw = raw_key_states[:, :, :hist_len, :]  # [B, H_KV, hist_len, d]
 
         # 1. Mode: StreamingLLM (First 4 attention sinks)
         if self.mode == "streaming_llm":
             return torch.arange(min(4, hist_len), device=device)
 
-        # 2. Mode: H2O (Heavy-Hitter Cumulative Attention Eviction)
+        # 2. Mode: True H2O (Causal Prefix Heavy-Hitter Cumulative Attention Eviction)
+        # In H2O, historical tokens in [0, hist_len) are scored by cumulative causal
+        # attention from queries within the historical prefix (before the final window).
         if self.mode == "h2o":
             with torch.no_grad():
-                # Sample queries to compute cumulative attention mass
-                W_sample = min(64, query_states.shape[2])
-                q_sample = query_states[:, :, -W_sample:, :]
-                k_hist = key_states[:, :, :hist_len, :]
+                num_prefix_samples = min(64, hist_len)
+                sample_idx = torch.linspace(0, hist_len - 1, steps=num_prefix_samples, device=device).long()
+                q_hist_sample = query_states[:, :, sample_idx, :]  # [B, H_q, S, d]
+                k_hist = key_states[:, :, :hist_len, :]           # [B, H_kv, hist_len, d]
                 k_hist_exp = k_hist.repeat_interleave(self.num_key_value_groups, dim=1)
-                scores = torch.einsum("bhqd,bhtd->bhqt", q_sample, k_hist_exp) / math.sqrt(self.head_dim)
-                attn = F.softmax(scores, dim=-1)
+
+                scores = torch.einsum("bhqd,bhtd->bhqt", q_hist_sample, k_hist_exp) / math.sqrt(self.head_dim)
+                # Causal mask: query at sample_idx[q] can only attend to t <= sample_idx[q]
+                t_idx = torch.arange(hist_len, device=device).unsqueeze(0)          # [1, hist_len]
+                q_pos = sample_idx.unsqueeze(1)                                     # [S, 1]
+                causal_mask = (t_idx <= q_pos).view(1, 1, num_prefix_samples, hist_len)
+                scores = scores.masked_fill(~causal_mask, float("-inf"))
+
+                attn = F.softmax(scores.float(), dim=-1)
                 cum_attn = attn.sum(dim=(0, 1, 2))  # [hist_len]
                 k_select = min(self.max_salient, hist_len)
                 return torch.topk(cum_attn, k=k_select).indices.sort().values
 
-        # 3. Mode: CDCA-V3 (Observation-Window Query Attention + Bidirectional Salience Diffusion)
+        # 3. Mode: CDCA-V3 (De-Rotated Translation + Bottom-Up Geometric Surprise
+        #    + Top-Down Observation Window Alignment + Bidirectional Diffusion)
         with torch.no_grad():
             W_sample = min(64, query_states.shape[2])
-            q_sample = query_states[:, :, -W_sample:, :]
-            k_hist = key_states[:, :, :hist_len, :]
-            k_hist_exp = k_hist.repeat_interleave(self.num_key_value_groups, dim=1)
-            scores = torch.einsum("bhqd,bhtd->bhqt", q_sample, k_hist_exp) / math.sqrt(self.head_dim)
-            attn = F.softmax(scores, dim=-1)
-            s_td = attn.sum(dim=(0, 1, 2))  # [hist_len]
 
-            # Continuous Bidirectional 1D Exponential Diffusion (K=16)
+            # (a) De-Rotated Pre-Cache Translation Layer alignment
+            q_raw_obs = self.translation.translate_q(raw_query_states[:, :, -W_sample:, :])
+            k_raw_hist = self.translation.translate_k(raw_key_states[:, :, :hist_len, :])
+            k_raw_exp = k_raw_hist.repeat_interleave(self.num_key_value_groups, dim=1)
+
+            derot_scores = torch.einsum("bhqd,bhtd->bhqt", q_raw_obs.float(), k_raw_exp.float()) / math.sqrt(self.head_dim)
+            derot_attn = F.softmax(derot_scores, dim=-1).sum(dim=(0, 1, 2))  # [hist_len]
+
+            # (b) RoPE Observation-Window Query Attention Mass
+            q_rope_obs = query_states[:, :, -W_sample:, :]
+            k_rope_hist = key_states[:, :, :hist_len, :].repeat_interleave(self.num_key_value_groups, dim=1)
+            rope_scores = torch.einsum("bhqd,bhtd->bhqt", q_rope_obs.float(), k_rope_hist.float()) / math.sqrt(self.head_dim)
+            rope_attn = F.softmax(rope_scores, dim=-1).sum(dim=(0, 1, 2))    # [hist_len]
+
+            # Top-Down combined alignment score (normalized)
+            s_td = 0.5 * (derot_attn / (derot_attn.max() + 1e-6)) + 0.5 * (rope_attn / (rope_attn.max() + 1e-6))
+
+            # (c) Bottom-Up Geometric Surprise (Key L2 Norm Z-Score + Angular Novelty)
+            k_norms = torch.norm(k_raw_hist.float(), p=2, dim=-1).mean(dim=(0, 1))  # [hist_len]
+            std_norm = k_norms.std()
+            z_norm = F.relu((k_norms - k_norms.mean()) / (std_norm + 1e-6)) if (hist_len > 1 and std_norm > 1e-6) else torch.zeros_like(k_norms)
+
+            k_unit = F.normalize(k_raw_hist.float(), p=2, dim=-1)
+            if hist_len > 1:
+                cos_adj = (k_unit[:, :, 1:, :] * k_unit[:, :, :-1, :]).sum(dim=-1).mean(dim=(0, 1))
+                novelty = torch.cat([torch.zeros(1, device=device), 1.0 - cos_adj], dim=0)
+                std_nov = novelty.std()
+                z_nov = F.relu((novelty - novelty.mean()) / (std_nov + 1e-6)) if std_nov > 1e-6 else torch.zeros_like(novelty)
+            else:
+                z_nov = torch.zeros(1, device=device)
+
+            s_bu = (z_norm + z_nov)
+            s_bu = s_bu / (s_bu.max() + 1e-6)
+
+            # Combined instantaneous salience signal
+            s_total = s_td + 0.15 * s_bu  # [hist_len]
+
+            # (d) Continuous Bidirectional 1D Exponential Diffusion (radius K=16)
             K = self.diffusion_radius
             delta = torch.arange(-K, K + 1, device=device, dtype=torch.float32)
             kernel = torch.exp(-0.10 * torch.abs(delta)).view(1, 1, -1)
             kernel = kernel / kernel.max()
-            diffused = F.conv1d(s_td.unsqueeze(0).unsqueeze(1).float(), kernel, padding=K).squeeze()  # [hist_len]
+            diffused = F.conv1d(s_total.view(1, 1, hist_len), kernel, padding=K).squeeze()  # [hist_len]
 
             k_select = min(self.max_salient, hist_len)
             return torch.topk(diffused, k=k_select).indices.sort().values

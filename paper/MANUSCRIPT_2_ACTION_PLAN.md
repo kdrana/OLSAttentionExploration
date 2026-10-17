@@ -1,232 +1,203 @@
-# Action Plan: Upgrading Manuscript 2 (`foundation_model_adaptation`) & Running EXP-26
+# Action Plan (v2): Resolving the 4 Code-vs-Manuscript Audit Issues in Manuscript 2 & `EXP-26`
 
-**Target Manuscript:** [`paper/manuscript_2_foundation_model_adaptation.md`](manuscript_2_foundation_model_adaptation.md)  
-**Supporting Bibliography:** [`paper/references.bib`](references.bib)  
-**Master Registry:** [`EXPERIMENTS.md`](../EXPERIMENTS.md)  
-**Core Module to Upgrade:** [`src/cognitive_dual_control_attention.py`](../src/cognitive_dual_control_attention.py)
+**Target Files to Update:**
+1. [`src/cognitive_dual_control_attention.py`](../src/cognitive_dual_control_attention.py)
+2. [`experiments/run_cdca_v3_ablation.py`](../experiments/run_cdca_v3_ablation.py) & [`experiments/modal_cdca_v3_runner.py`](../experiments/modal_cdca_v3_runner.py)
+3. [`results/exp26_cdca_v3_ablation/metrics.json`](../results/exp26_cdca_v3_ablation/metrics.json) (and plots `fig70`, `fig71`, `fig72`)
+4. [`EXPERIMENTS.md`](../EXPERIMENTS.md)
+5. [`paper/manuscript_2_foundation_model_adaptation.md`](manuscript_2_foundation_model_adaptation.md)
 
 > **Instructions for the Executing Agent (Flash 3.8):**  
-> Follow the phases below sequentially. Adhere strictly to [`AGENTS.md`](../AGENTS.md):
-> 1. Put reusable classes/functions in `src/`, runners in `experiments/`, and outputs in `results/exp26_cdca_v3_ablation/`.
-> 2. Enforce `timeout=300` on all Modal GPU functions and verify spin-down via `modal app list`.
-> 3. Never hallucinate or round numbers without querying the exact `results/<exp_id>/metrics.json` files.
+> Execute Steps 1 through 5 in order. Follow [`AGENTS.md`](../AGENTS.md) strictly:
+> - Enforce `timeout=300` on Modal GPU runs and verify container spin-down via `modal app list`.
+> - Every single number in [`paper/manuscript_2_foundation_model_adaptation.md`](manuscript_2_foundation_model_adaptation.md) and [`EXPERIMENTS.md`](../EXPERIMENTS.md) must match the corresponding `metrics.json` file with zero unmeasured or fabricated cells.
 
 ---
 
-## Phase 1: Fix Technical Bugs & Eliminate Keyword Leakage in `src/cognitive_dual_control_attention.py`
+## Step 1: Fix `compute_salience_indices` in `src/cognitive_dual_control_attention.py`
 
-### 1.1 Audit of Current Issues to Fix
-1. **Oracle Keyword Leakage (`ALERT_KEYWORDS`):**
-   - Currently, [`src/cognitive_dual_control_attention.py`](../src/cognitive_dual_control_attention.py) (lines 30–34) hardcodes `ALERT_KEYWORDS = ["critical", "secret", "access", "code", "antigravity", "74921", ...]` and decodes input token IDs to strings on the CPU in `set_salient_landmark_indices()`.
-   - Including `"74921"` and `"antigravity"` is target leakage. Furthermore, because `beacon_signal` is binary (`0.0` or `1.0`), when the haystack repeats to $T = 16,384$ or $32,768$, more than $1,024$ tokens match words like `"note"`, `"code"`, or `"key"`. `torch.topk(diffused, 1024)` breaks ties by picking the **first** $1,024$ tokens in the sequence, truncating or dropping needles at deeper positions (causing the `" 7."` and `" 7499."` failures in [`results/exp21_translation_layer/metrics.json`](../results/exp21_translation_layer/metrics.json)).
-2. **Unused `PreCacheTranslationLayer` in `forward()`:**
-   - `self.translation` (`PreCacheTranslationLayer`) is initialized on line 107 of `CognitiveDualControlAttention`, but `forward()` never calls `self.translation.translate_k()` or `translate_q()`.
-3. **Prefill vs. Decode Cache Transition:**
-   - In `forward()`, prefill (`T > 1`) executes full attention over all $T$ tokens (so token #1 of `.generate()` is predicted with full $O(T)$ attention), while token #2 switches to `[salient_k_cache, local_k_cache]`. If `salient_k_cache` misses any needle digit due to binary top-$k$ tie-breaking, generation halts after the first digit (`" 7."`).
+### Why This Fix Is Needed
+1. **Bug A (`mode="h2o"` was coded as end-of-prompt query lookahead):** In [`src/cognitive_dual_control_attention.py`](../src/cognitive_dual_control_attention.py) (lines 138–150), `mode == "h2o"` used `q_sample = query_states[:, :, -64:, :]` (the final 64 query tokens where the retrieval question sits). That is **SnapKV lookahead**, NOT **$\text{H}_2\text{O}$ (Heavy-Hitter Oracle, Zhang et al., 2023)**. In true $\text{H}_2\text{O}$, historical tokens in `[0, hist_len)` are evicted **causally during prefill** based on cumulative attention from historical prefix queries *before* the end-of-prompt question arrives. Because historical prefix queries attend to attention sinks and local context rather than a needle whose question hasn't been asked yet, true $\text{H}_2\text{O}$ suffers severe position bias and misses un-queried needles.
+2. **Bug B (`raw_query_states`, `raw_key_states`, and `self.translation` were unused in `cdca_v3`):** Lines 151–169 ignored `raw_key_states`, `raw_query_states`, and `self.translation` (`PreCacheTranslationLayer`), computing scores only on post-RoPE `query_states` and `key_states` and omitting bottom-up geometric surprise $s_\tau^{\text{bu}}$.
 
-### 1.2 Exact Code Upgrade: Tensor-Geometric & De-Rotated Query-Guided Salience Diffusion (`CDCA-V3`)
-Update [`src/cognitive_dual_control_attention.py`](../src/cognitive_dual_control_attention.py) to compute token salience **100% from internal un-rotated tensors (`raw_q`, `raw_k`) inside `forward()`**, requiring zero hardcoded keywords and zero tokenizer string decoding:
+### Exact Replacement Code for `compute_salience_indices` in `src/cognitive_dual_control_attention.py`
+Replace `compute_salience_indices` (lines 118–170 of [`src/cognitive_dual_control_attention.py`](../src/cognitive_dual_control_attention.py)) with the following implementation:
 
-1. **Bottom-Up Geometric Surprise & Structural Novelty ($s_\tau^{\text{bu}}$):**
-   On un-rotated keys $\boldsymbol{k}_\tau^{\text{raw}} \in \mathbb{R}^{H_{\text{KV}} \times T_{\text{hist}} \times d}$:
-   - Compute L2 key norm z-score across historical tokens:
-     $$z_{\text{norm}}(\tau) = \frac{\|\boldsymbol{k}_\tau^{\text{raw}}\|_2 - \mu_{\text{norm}}}{\sigma_{\text{norm}} + \epsilon}$$
-   - Compute local angular novelty (cosine distance from preceding token):
-     $$\nu(\tau) = 1 - \cos\left(\boldsymbol{k}_\tau^{\text{raw}}, \boldsymbol{k}_{\tau-1}^{\text{raw}}\right), \qquad z_{\text{nov}}(\tau) = \frac{\nu(\tau) - \mu_\nu}{\sigma_\nu + \epsilon}$$
-   - Bottom-up surprise score: $s_\tau^{\text{bu}} = \text{ReLU}(z_{\text{norm}}(\tau)) + \text{ReLU}(z_{\text{nov}}(\tau))$.
+```python
+    def compute_salience_indices(
+        self,
+        raw_key_states: torch.Tensor,
+        raw_query_states: torch.Tensor,
+        query_states: torch.Tensor,
+        key_states: torch.Tensor,
+        hist_len: int,
+    ) -> torch.Tensor:
+        """
+        Computes salient landmark indices across historical tokens tau in [0, hist_len).
+        Requires zero hardcoded keywords and zero string decoding.
+        """
+        device = raw_key_states.device
 
-2. **Top-Down De-Rotated Observation Window Alignment ($s_\tau^{\text{td}}$):**
-   Following the observation-window principle (cf. SnapKV, Li et al., 2024), but operating in the **de-rotated stationary semantic space** ($\tilde{\boldsymbol{q}}_t = \text{translate\_q}(\boldsymbol{q}_t^{\text{raw}})$, $\tilde{\boldsymbol{k}}_\tau = \text{translate\_k}(\boldsymbol{k}_\tau^{\text{raw}})$):
-   - Take the last $W_{\text{obs}} = \min(64, T)$ query vectors at the end of the prompt $\tilde{\boldsymbol{Q}}_{\text{obs}} \in \mathbb{R}^{B \times H_Q \times W_{\text{obs}} \times d}$.
-   - Compute the maximum de-rotated alignment score between the observation window queries and every historical key $\tau \in [1, T - W]$:
-     $$a(\tau) = \max_{h, \, t \in \text{obs}} \left( \frac{\tilde{\boldsymbol{q}}_{h, t}^\top \tilde{\boldsymbol{k}}_{h_{\text{kv}}, \tau}}{\sqrt{d}} \right), \qquad s_\tau^{\text{td}} = \frac{a(\tau) - \mu_a}{\sigma_a + \epsilon}$$
+        # 1. Mode: StreamingLLM (First 4 attention sinks)
+        if self.mode == "streaming_llm":
+            return torch.arange(min(4, hist_len), device=device)
 
-3. **Continuous Bidirectional Salience Diffusion ($\omega_\tau$):**
-   Combine bottom-up and top-down salience into a continuous signal $s_\tau = s_\tau^{\text{td}} + 0.3 \, s_\tau^{\text{bu}}$, and convolve bidirectionally with the 1D exponential diffusion kernel of radius $K = 16$:
-   $$\omega_\tau = \left( s * \kappa \right)_\tau, \qquad \kappa(\delta) = \exp(-0.10 |\delta|), \quad \delta \in [-16, +16]$$
-   - Because $\omega_\tau$ is **strictly continuous** (no binary `1.0` plateaus), `torch.topk(omega, k=max_salient).indices.sort().values` has **zero tie-breaking truncation**, preserving the entire clause surrounding both proactive and retroactive needles at any depth ($10\%, 50\%, 90\%$) up to $T = 32,768+$!
+        # 2. Mode: True H2O (Causal Prefix Heavy-Hitter Cumulative Attention Eviction)
+        # In H2O, historical tokens in [0, hist_len) are scored by cumulative causal
+        # attention from queries within the historical prefix (before the final window).
+        if self.mode == "h2o":
+            with torch.no_grad():
+                num_prefix_samples = min(64, hist_len)
+                sample_idx = torch.linspace(0, hist_len - 1, steps=num_prefix_samples, device=device).long()
+                q_hist_sample = query_states[:, :, sample_idx, :]  # [B, H_q, S, d]
+                k_hist = key_states[:, :, :hist_len, :]           # [B, H_kv, hist_len, d]
+                k_hist_exp = k_hist.repeat_interleave(self.num_key_value_groups, dim=1)
 
-4. **Consistent Prefill & Decode Readout + Optional De-Rotated OLS Bulk Residual:**
-   - Ensure that during prefill (`T > W`), `salient_k_cache` and `salient_v_cache` are populated automatically inside `forward()` using the continuous tensor salience indices (no external `set_salient_landmark_indices` call required, though keep `set_salient_landmark_indices` as a no-op or wrapper for backward compatibility with `EXP-21` scripts).
-   - Also add two clean baseline modes to `CognitiveDualControlAttention` (via a `mode` argument: `"cdca_v3"`, `"streaming_llm"`, `"h2o"`) so all baselines can be benchmarked with the exact same harness:
-     - `mode="streaming_llm"`: Retains the first $N_{\text{sink}} = 4$ tokens + local window $W = 1024$.
-     - `mode="h2o"`: Retains the top $N_{\text{salient}} = 1024$ historical tokens ranked by cumulative attention from a causal sample + local window $W = 1024$.
-     - `mode="cdca_v3"`: Retains the top $N_{\text{salient}} = 1024$ historical tokens ranked by De-Rotated Query + Geometric Surprise Bidirectional Diffusion + local window $W = 1024$.
+                scores = torch.einsum("bhqd,bhtd->bhqt", q_hist_sample, k_hist_exp) / math.sqrt(self.head_dim)
+                # Causal mask: query at sample_idx[q] can only attend to t <= sample_idx[q]
+                t_idx = torch.arange(hist_len, device=device).unsqueeze(0)          # [1, hist_len]
+                q_pos = sample_idx.unsqueeze(1)                                     # [S, 1]
+                causal_mask = (t_idx <= q_pos).view(1, 1, num_prefix_samples, hist_len)
+                scores = scores.masked_fill(~causal_mask, float("-inf"))
 
----
+                attn = F.softmax(scores.float(), dim=-1)
+                cum_attn = attn.sum(dim=(0, 1, 2))  # [hist_len]
+                k_select = min(self.max_salient, hist_len)
+                return torch.topk(cum_attn, k=k_select).indices.sort().values
 
-## Phase 2: Implement & Execute `EXP-26-CDCA-V3-ABLATION` on Modal GPU
+        # 3. Mode: CDCA-V3 (De-Rotated Translation + Bottom-Up Geometric Surprise
+        #    + Top-Down Observation Window Alignment + Bidirectional Diffusion)
+        with torch.no_grad():
+            W_sample = min(64, query_states.shape[2])
 
-### 2.1 Files to Create
-1. **Benchmark Harness:** `experiments/run_cdca_v3_ablation.py`
-2. **Modal Cloud Runner:** `experiments/modal_cdca_v3_runner.py` (with `gpu="A10G"`, `timeout=300`)
-3. **Output Directory:** `results/exp26_cdca_v3_ablation/`
-   - `results/exp26_cdca_v3_ablation/metrics.json`
-   - `results/exp26_cdca_v3_ablation/fig70_cdca_v3_ablation_niah.png`
-   - `results/exp26_cdca_v3_ablation/fig71_multi_needle_and_uuid_recall.png`
-   - `results/exp26_cdca_v3_ablation/fig72_memory_and_ppl_scaling.png`
+            # (a) De-Rotated Pre-Cache Translation Layer alignment
+            q_raw_obs = self.translation.translate_q(raw_query_states[:, :, -W_sample:, :])
+            k_raw_hist = self.translation.translate_k(raw_key_states[:, :, :hist_len, :])
+            k_raw_exp = k_raw_hist.repeat_interleave(self.num_key_value_groups, dim=1)
 
-### 2.2 Sub-Experiments to Run Inside `EXP-26` (Target Runtime: ~150s on A10G)
-1. **Full 18-Trial NIAH Grid ($T \in \{1024, 2048, 4096, 8192, 16384, 32768\}$, Depths $\{10\%, 50\%, 90\%\}$) across 4 Methods:**
-   - **Original Softmax** (from `results/exp18_qwen_full_validation/metrics.json`: $18/18 = 100.0\%$, $393.2\text{ MB}$ cache)
-   - **StreamingLLM ($W=1024 + 4$ sinks):** Run live on $T \in \{1024 \dots 32768\}$. Expected: $100\%$ at $T=1024$, $0\%$ whenever needle is outside the last $1024$ tokens ($4/18 = 22.2\%$).
-   - **H2O / Cumulative Attention Eviction ($W=1024 + N=1024$):** Run live. Show how position bias / pre-query accumulation degrades recall at $16\text{k}$–$32\text{k}$.
-   - **CDCA-V3 (Zero-Keyword Tensor Salience + De-Rotation + Bidirectional Diffusion, $W=1024 + N=1024$):** Run live across all 18 trials + the $T=32,768$ retroactive framing trial. Verify it achieves **$18/18$ ($100.0\%$)** without any keyword list!
-2. **Out-of-Distribution & Multi-Needle Stress Tests ($T = 8,192$ and $T = 16,384$):**
-   - **Arbitrary Alphanumeric / UUID Needle Test:** Insert a novel unseen code identifier (`"X9F-482-Q7B"`) that never appeared in any keyword list. Verify $100\%$ exact retrieval.
-   - **Multi-Needle Synthesis Test:** Insert **3 distinct needles** at Depths $15\%$, $50\%$, and $85\%$ in the same prompt (e.g., Alpha code `9182`, Beta code `3746`, Gamma code `5501`) and query all three.
-3. **Expanded Multi-Domain Reasoning & Long-Context Perplexity:**
-   - Evaluate MMLU/ARC science benchmark on an expanded 25-question evaluation set (so accuracy has $4\%$ granularity instead of 5-question $20\%$ steps) and measure long-context language modeling perplexity at $T = 4,096$ and $T = 8,192$.
-4. **Update `EXPERIMENTS.md`:**
-   - Add `EXP-26-CDCA-V3` to the summary table at the top of [`EXPERIMENTS.md`](../EXPERIMENTS.md) and append a complete detailed section at the bottom with exact numbers from `results/exp26_cdca_v3_ablation/metrics.json`.
+            derot_scores = torch.einsum("bhqd,bhtd->bhqt", q_raw_obs.float(), k_raw_exp.float()) / math.sqrt(self.head_dim)
+            derot_attn = F.softmax(derot_scores, dim=-1).sum(dim=(0, 1, 2))  # [hist_len]
 
----
+            # (b) RoPE Observation-Window Query Attention Mass
+            q_rope_obs = query_states[:, :, -W_sample:, :]
+            k_rope_hist = key_states[:, :, :hist_len, :].repeat_interleave(self.num_key_value_groups, dim=1)
+            rope_scores = torch.einsum("bhqd,bhtd->bhqt", q_rope_obs.float(), k_rope_hist.float()) / math.sqrt(self.head_dim)
+            rope_attn = F.softmax(rope_scores, dim=-1).sum(dim=(0, 1, 2))    # [hist_len]
 
-## Phase 3: Expand `paper/references.bib` with Missing Related Work
+            # Top-Down combined alignment score (normalized)
+            s_td = 0.5 * (derot_attn / (derot_attn.max() + 1e-6)) + 0.5 * (rope_attn / (rope_attn.max() + 1e-6))
 
-Append the following BibTeX citations to [`paper/references.bib`](references.bib) so Manuscript 2 is properly grounded in the 2023–2026 literature:
+            # (c) Bottom-Up Geometric Surprise (Key L2 Norm Z-Score + Angular Novelty)
+            k_norms = torch.norm(k_raw_hist.float(), p=2, dim=-1).mean(dim=(0, 1))  # [hist_len]
+            z_norm = F.relu((k_norms - k_norms.mean()) / (k_norms.std() + 1e-6))
 
-```bibtex
-@inproceedings{xiao2024streamingllm,
-  title={Efficient Streaming Language Models with Attention Sinks},
-  author={Xiao, Guangxuan and Tian, Yuandong and Chen, Beidi and Han, Song and Lewis, Mike},
-  booktitle={International Conference on Learning Representations (ICLR)},
-  year={2024}
-}
+            k_unit = F.normalize(k_raw_hist.float(), p=2, dim=-1)
+            cos_adj = (k_unit[:, :, 1:, :] * k_unit[:, :, :-1, :]).sum(dim=-1).mean(dim=(0, 1))
+            novelty = torch.cat([torch.zeros(1, device=device), 1.0 - cos_adj], dim=0)
+            z_nov = F.relu((novelty - novelty.mean()) / (novelty.std() + 1e-6))
 
-@inproceedings{zhang2023h2o,
-  title={H2O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models},
-  author={Zhang, Zhenyu and Sheng, Ying and Zhou, Tianyi and Chen, Tianlong and Zheng, Lianmin and Cai, Ruisi and Song, Zhao and Tian, Yuandong and R{\'e}, Christopher and Barrett, Clark and Wang, Zhangyang and Chen, Beidi},
-  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
-  volume={36},
-  year={2023}
-}
+            s_bu = (z_norm + z_nov)
+            s_bu = s_bu / (s_bu.max() + 1e-6)
 
-@inproceedings{li2024snapkv,
-  title={SnapKV: LLM Knows What You Are Looking For Before Generation},
-  author={Li, Yuhong and Huang, Yingbing and Yang, Bowen and Venkitesh, Bharat and Locatelli, Acyr and Ye, Hanchen and Cai, Tianle and Lewis, Patrick and Chen, Deming},
-  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
-  volume={37},
-  year={2024}
-}
+            # Combined instantaneous salience signal
+            s_total = s_td + 0.15 * s_bu  # [hist_len]
 
-@inproceedings{zhang2025lolcats,
-  title={LoLCATs: On Low-Rank Linearizing of Large Language Models},
-  author={Zhang, Michael and Arora, Simran and Chalamala, Rahul and Wu, Alan and Spector, Benjamin and Eyuboglu, Sabri and R{\'e}, Christopher},
-  booktitle={International Conference on Learning Representations (ICLR)},
-  year={2025}
-}
+            # (d) Continuous Bidirectional 1D Exponential Diffusion (radius K=16)
+            K = self.diffusion_radius
+            delta = torch.arange(-K, K + 1, device=device, dtype=torch.float32)
+            kernel = torch.exp(-0.10 * torch.abs(delta)).view(1, 1, -1)
+            kernel = kernel / kernel.max()
+            diffused = F.conv1d(s_total.view(1, 1, hist_len), kernel, padding=K).squeeze()  # [hist_len]
 
-@article{mercat2024linearizing,
-  title={Linearizing Large Language Models},
-  author={Mercat, Jean and Vasiljevic, Igor and Keh, Sedrick and Arora, Kushal and Dave, Achal and Gaidon, Adrien and Kollar, Thomas},
-  journal={arXiv preprint arXiv:2405.06640},
-  year={2024}
-}
-
-@inproceedings{bick2024transformers,
-  title={Transformers to SSMs: Distilling Quadratic Knowledge to Subquadratic Models},
-  author={Bick, Aviv and Li, Kevin Y. and Xing, Eric P. and Kolter, J. Zico and Gu, Albert},
-  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
-  volume={37},
-  year={2024}
-}
-
-@article{deepseek2024v2,
-  title={DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model},
-  author={{DeepSeek-AI}},
-  journal={arXiv preprint arXiv:2405.04434},
-  year={2024}
-}
-
-@article{behrouz2025titans,
-  title={Titans: Learning to Memorize at Test Time},
-  author={Behrouz, Ali and Zhong, Peilin and Mirrokni, Vahab},
-  journal={arXiv preprint arXiv:2501.00663},
-  year={2025}
-}
-
-@article{sun2024learning,
-  title={Learning to (Learn at Test Time): RNNs with Expressive Hidden States},
-  author={Sun, Yu and Li, Xinhao and Dalal, Karan and Xu, Jiarui and Vikram, Arjun and Zhang, Genghan and Dubois, Yann and Chen, Xinlei and Wang, Xiaolong and Koyejo, Sanmi and Hashimoto, Tatsunori and Guestrin, Carlos},
-  journal={arXiv preprint arXiv:2407.04620},
-  year={2024}
-}
-
-@inproceedings{yang2024gated,
-  title={Gated Delta Networks: Improving Mamba2 with Delta Rule},
-  author={Yang, Songlin and Kautz, Jan and Hatamizadeh, Ali},
-  booktitle={International Conference on Learning Representations (ICLR)},
-  year={2025}
-}
+            k_select = min(self.max_salient, hist_len)
+            return torch.topk(diffused, k=k_select).indices.sort().values
 ```
 
 ---
 
-## Phase 4: Comprehensive Rewrite Blueprint for `paper/manuscript_2_foundation_model_adaptation.md`
+## Step 2: Fix the Stress Tests & Multi-Needle Evaluation in `experiments/run_cdca_v3_ablation.py`
 
-Rewrite [`paper/manuscript_2_foundation_model_adaptation.md`](manuscript_2_foundation_model_adaptation.md) from its current short 186-line summary into a complete, publication-grade 8-section manuscript (~450–600 lines) that integrates **all Qwen adaptation experiments (`EXP-15` through `EXP-21`, `EXP-23`, and `EXP-26`)**:
+### Why This Fix Is Needed
+1. **Multi-Needle Prompt Bug:** In [`experiments/run_cdca_v3_ablation.py`](../experiments/run_cdca_v3_ablation.py) (line 339), the query was:
+   `query_multi = "\nQuestion: What are the codes for Alpha, Beta, and Gamma? Answer: Alpha is 9182, Beta is 3746, Gamma is"`
+   This hardcoded the answers for Alpha (`9182`) and Beta (`3746`) directly inside the prompt and only tested Gamma (`5501` at $85\%$ depth).
+2. **Missing Baseline Runs on Stress Tests:** `run_cdca_v3_ablation.py` (lines 308–368) only ran `cdca_v3` on the Retroactive 32k, UUID 8k/16k, and Multi-Needle 16k stress tests, never running `streaming_llm` or `h2o` on those tests.
 
-### Section-by-Section Outline & Required Fixes
+### Exact Modifications to `experiments/run_cdca_v3_ablation.py`
+1. **Test All 3 Needles Independently on the Same 16k Multi-Needle Document:**
+   In the Multi-Needle Synthesis test at $T = 16,384$ (with `n1` Alpha=`9182` at $15\%$ depth, `n2` Beta=`3746` at $50\%$ depth, and `n3` Gamma=`5501` at $85\%$ depth embedded simultaneously in the same haystack), evaluate **3 separate retrieval queries** (one asking for Alpha, one asking for Beta, one asking for Gamma, without giving away any codes in the query):
+   - Query 1: `"\nQuestion: What is the Alpha authorization code? Answer: The Alpha authorization code is"` $\to$ check `"9182"` in output.
+   - Query 2: `"\nQuestion: What is the Beta authorization code? Answer: The Beta authorization code is"` $\to$ check `"3746"` in output.
+   - Query 3: `"\nQuestion: What is the Gamma authorization code? Answer: The Gamma authorization code is"` $\to$ check `"5501"` in output.
+   - Record `alpha_success`, `beta_success`, `gamma_success`, and `needles_recalled` out of 3!
+2. **Run All 4 Stress Tests Across All 3 Active Modes (`"cdca_v3"`, `"h2o"`, `"streaming_llm"`):**
+   Loop over `mode_name in ["cdca_v3", "h2o", "streaming_llm"]` for:
+   - `retroactive_framing_32k`
+   - `uuid_needle_8k`
+   - `uuid_needle_16k`
+   - `multi_needle_16k` (all 3 queries: Alpha at $15\%$, Beta at $50\%$, Gamma at $85\%$)
+   Store the results per mode in `metrics["stress_tests"][mode_name]`.
+3. **Update Plotting in `experiments/modal_cdca_v3_runner.py` (or `run_cdca_v3_ablation.py`):**
+   Regenerate `fig70_cdca_v3_ablation_niah.png`, `fig71_multi_needle_and_uuid_recall.png`, and `fig72_memory_and_ppl_scaling.png` so Figure 70 and Figure 71 visually show the true causal-prefix $\text{H}_2\text{O}$ score vs. `StreamingLLM` vs. `CDCA-V3`!
 
-1. **Title & Abstract:**
-   - Update metrics to include:
-     - Direct Functional Operator Estimation ($R^2 = 0.9505$ mean across 6 layers, $R^2 = 0.9932$ at Layer 23 in $21.95\text{s}$, $40.0\%$ HumanEval pass@1).
-     - The Rank-$r$ Spectral Dilution Horizon and Representational Shock Theorem.
-     - CDCA-V2/V3 memory compression ($16.0\times$ to $20.9\times$ reduction at $32\text{k}$ context) and updated NIAH retrieval rate from `EXP-26`.
+---
 
-2. **Section 1: Introduction — The Hybrid Foundation Model Serving Dilemma**
-   - **CRITICAL MATH FIX in Section 1.1:**
-     Replace the buggy equation (`6 * 2 * 2 * T * 256 * 2 = 24,576 * T`) with the exact arithmetic:
-     $$\text{Memory}_{\text{KV}}(T) = L_{\text{full}} \times 2_{\text{(K,V)}} \times H_{\text{KV}} \times T \times d_{\text{head}} \times 2\text{ bytes} = 6 \times 2 \times 2 \times T \times 256 \times 2 = \mathbf{12,288 \times T\text{ bytes}} \text{ ($12.0\text{ KiB/token}$)}$$
-     At $T = 32,768$ tokens:
-     $$\text{Memory}_{\text{KV}}(32\text{k}) = 12,288 \times 32,768 = 402,653,184\text{ bytes} = 393,216\text{ KiB} = \mathbf{384.0\text{ MiB}} \text{ ($402.7\text{ MB}$)}$$
-     And at Qwen3.5's native $T = 262,144$ context window:
-     $$\text{Memory}_{\text{KV}}(262\text{k}) = 12,288 \times 262,144 = 3,221,225,472\text{ bytes} = \mathbf{3.00\text{ GiB}} \text{ ($3.22\text{ GB}$ per single sequence)}$$
-   - Explain why `Qwen/Qwen3.5-0.8B-Base` is an ideal testbed: 18 of its 24 layers are *already* linear Gated DeltaNet (GDN) layers, leaving the **6 Full-Attention layers (Layers 3, 7, 11, 15, 19, 23)** as the sole quadratic compute and linear memory bottleneck.
+## Step 3: Run `EXP-26` on Modal GPU & Verify Spin-Down
 
-3. **Section 2: Related Work (Contextualizing Across 4 Research Streams)**
-   - **2.1 Post-Training Attention Linearization & Distillation:** Contrast SUPRA (Mercat et al., 2024), MOHAWK (Bick et al., 2024), and LoLCATs (Zhang et al., 2025) against our closed-form OLS Direct Operator Estimation.
-   - **2.2 Training-Free KV-Cache Eviction:** Contrast StreamingLLM (Xiao et al., 2024), H2O (Zhang et al., 2023), and SnapKV (Li et al., 2024) against our Bidirectional Salience Diffusion.
-   - **2.3 RoPE Interference in Compressed Latent Spaces:** Connect DeepSeek-V2 Multi-Head Latent Attention (MLA) (DeepSeek-AI, 2024) to our De-Rotated Pre-Cache Translation Layer.
-   - **2.4 Test-Time Regression & Dual Memory:** Contrast Titans (Behrouz et al., 2025) and TTT (Sun et al., 2024) against closed-form second-order Gramian inversion on frozen models.
+1. Run:
+   ```bash
+   modal run experiments/modal_cdca_v3_runner.py
+   ```
+2. Immediately verify spin-down:
+   ```bash
+   modal app list
+   ```
+3. Inspect `results/exp26_cdca_v3_ablation/metrics.json` to get the exact new numbers for `streaming_llm`, `h2o`, and `cdca_v3` across the 18-trial NIAH grid and the 4 stress tests.
 
-4. **Section 3: Direct Functional Operator Estimation vs. Token Distillation (`EXP-15`, `EXP-16`, `EXP-17`, `EXP-18`, `EXP-23`)**
-   - **3.1 The Representational Shock Theorem (`EXP-23`):** Show why hard-swapping unaligned NSAL layers drops MMLU to $10.0\%$ and stalls at $4.65$ loss (`results/exp23_qwen_nsal_alignment/metrics.json`).
-   - **3.2 Corpus-Induced Domain Drift in Token Distillation (`EXP-15` & `EXP-16`):** Include exact metrics from `results/exp15_qwen_ols_linearization/metrics.json` and `results/exp16_qwen_benchmark/metrics.json` ($\text{PPL } 8.39 \to 9.69$ in $128.25\text{s}$, $204.0\text{ KB}$ state, $892.9\text{ tok/s}$ decode at $8\text{k}$ vs $34.4\text{ tok/s}$ Softmax), and illustrate the TinyStories vocabulary drift on scientific prompts.
-   - **3.3 Direct Functional Operator Estimation (`EXP-17` & `EXP-18`):** Formulate the operator regression objective:
-     $$\hat{F}_{\text{OLS}}(\boldsymbol{q}_t, \boldsymbol{K}_{\le t}, \boldsymbol{V}_{\le t}; \boldsymbol{U}_k, \boldsymbol{U}_q) = \boldsymbol{\phi}_q(\boldsymbol{q}_t)^\top \left( \sum_{\tau=1}^t \gamma^{t-\tau} \boldsymbol{\phi}_k(\boldsymbol{k}_\tau) \boldsymbol{\phi}_k(\boldsymbol{k}_\tau)^\top + \lambda \boldsymbol{I}_r \right)^{-1} \left( \sum_{\tau=1}^t \gamma^{t-\tau} \boldsymbol{\phi}_k(\boldsymbol{k}_\tau) \boldsymbol{v}_\tau^\top \right)$$
-     Include the domain fidelity table from `EXP-17` (Code $R^2 = 0.9443$, Science $R^2 = 0.9619$, Math $R^2 = 0.9648$ in $8.34\text{s}$) and the 6-layer fit table from `EXP-18` (Layers 3, 7, 11, 15, 19, 23 averaging $R^2 = 0.9505$, Layer 23 reaching $R^2 = 0.9932$ in $21.95\text{s}$, and $40.0\%$ HumanEval pass rate). Embed Figures 40–45 using valid relative paths (`../results/exp16_qwen_benchmark/...`, `../results/exp17_direct_operator_estimation/...`, `../results/exp18_qwen_full_validation/...`).
+---
 
-5. **Section 4: Theoretical Limits of Fixed-Rank Recurrence (`EXP-18`, `EXP-19`, `EXP-21`)**
-   - **4.1 The Rank-$r$ Spectral Dilution Horizon (`EXP-18` & `EXP-19`):** Present the Subspace Rank Scaling table ($r \in \{8, 16, 32, 64\}$ from `results/exp19_rank_scaling/metrics.json`: state memory $51.0\text{ KB} \to 576.0\text{ KB}$, decode FLOPs $52.2 \to 589.8\text{ KFLOPs}$) and prove why a single needle token at $T=32,768$ suffers $\frac{1}{T} \approx 3 \times 10^{-5}$ eigenvalue dilution in a fixed $r \times r$ Gram matrix.
-   - **4.2 Rotary Phase Cancellation & The De-Rotation Theorem (`EXP-21`):** Prove mathematically why $\sum_\tau \boldsymbol{R}_{\theta, \tau} \boldsymbol{k} \boldsymbol{k}^\top \boldsymbol{R}_{\theta, \tau}^\top$ smears covariance across frequencies, and show that stripping RoPE before operator projection jumps Layer 3 validation $R^2$ from $0.4014 \to 0.9893$.
+## Step 4: Fix Exact Numeric Tables & Formulas in `paper/manuscript_2_foundation_model_adaptation.md` and `EXPERIMENTS.md`
 
-6. **Section 5: Cognitive Dual-Control Memory Architecture (`CDCA-V2` & `CDCA-V3`, `EXP-20`, `EXP-21`, `EXP-26`)**
-   - Detail the three-component surgical architecture:
-     1. **STM Local Sliding Window ($W=1024$)** for exact local syntax and $100\%$ MMLU preservation.
-     2. **Tensor-Geometric & De-Rotated Query-Guided Salience Gate with Bidirectional Diffusion ($\kappa = 16$)** for proactive and retroactive clause retention without lexical heuristics.
-     3. **De-Rotated Flash-OLS Bulk Operator State** for $O(1)$ background context summarization.
+### 4.1 Fix Table 3 (`EXP-19` Subspace Rank Scaling) in `manuscript_2_foundation_model_adaptation.md` (Lines 187–194)
+In [`results/exp19_rank_scaling/metrics.json`](../results/exp19_rank_scaling/metrics.json), `state_kb` (`51.0 KB`, `108.0 KB`, `240.0 KB`, `576.0 KB`) is **already the total 6-layer state memory** (not single-layer memory). Replace Table 3 in [`paper/manuscript_2_foundation_model_adaptation.md`](manuscript_2_foundation_model_adaptation.md) with the exact numbers from [`results/exp19_rank_scaling/metrics.json`](../results/exp19_rank_scaling/metrics.json):
 
-7. **Section 6: Comprehensive Empirical Validation (`EXP-20`, `EXP-21`, `EXP-26`)**
-   - **FIX BROKEN PATHS:** Update all figure and JSON references from the non-existent `results/exp20_qwen_benchmark/` to [`../results/exp20_cognitive_dual_control/`](../results/exp20_cognitive_dual_control/), [`../results/exp21_translation_layer/`](../results/exp21_translation_layer/), and [`../results/exp26_cdca_v3_ablation/`](../results/exp26_cdca_v3_ablation/).
-   - Present the complete multi-baseline comparison table (Original Softmax vs. Pure Flash-OLS vs. Hard NSAL Swap vs. StreamingLLM vs. H2O vs. CDCA-V1 vs. CDCA-V2 vs. CDCA-V3) across:
-     - Memory footprint at $32\text{k}$ and $262\text{k}$
-     - 18-trial NIAH accuracy ($1\text{k} \to 32\text{k}$, depths $10\%, 50\%, 90\%$)
-     - Retroactive alert framing at $32\text{k}$
-     - Multi-needle & unseen UUID retrieval (`EXP-26`)
-     - MMLU/ARC accuracy & HumanEval coding
+| Subspace Rank ($r$) | Adapter Params | Validation $R^2$ | Cosine Similarity | Total 6-Layer State Memory | Compression vs. 32k Softmax ($384\text{ MiB}$) | Decode FLOPs / Token | Fit Time (s) |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **$r = 8$** | $40,960$ | $0.7080$ | $0.8365$ | **$51.0\text{ KB}$ ($8.5\text{ KB/layer}$)** | **$7,710.1\times$** | $52.2\text{ KFLOPs}$ | $5.59\text{s}$ |
+| **$r = 16$** | $81,920$ | $0.4014$ | $0.7579$ | **$108.0\text{ KB}$ ($18.0\text{ KB/layer}$)** | **$3,640.9\times$** | $110.6\text{ KFLOPs}$ | $3.74\text{s}$ |
+| **$r = 32$** | $163,840$ | $0.2344$ | $0.6906$ | **$240.0\text{ KB}$ ($40.0\text{ KB/layer}$)** | **$1,638.4\times$** | $245.8\text{ KFLOPs}$ | $4.67\text{s}$ |
+| **$r = 64$** | $327,680$ | $0.6846$ | $0.7932$ | **$576.0\text{ KB}$ ($96.0\text{ KB/layer}$)** | **$682.7\times$** | $589.8\text{ KFLOPs}$ | $8.28\text{s}$ |
 
-8. **Section 7: Practical Deployment & Discussion**
-   - Show the clean, updated zero-retraining HuggingFace wrapper snippet and discuss hardware concurrency implications on 24GB GPUs.
+*(Also add a 1-sentence note explaining why Table 3's validation $R^2$ on Layer 3 was $0.4014$ at $r=16$: because EXP-19 projected post-RoPE keys prior to the discovery of the De-Rotation Theorem in EXP-21, which lifted $r=16$ fidelity from $0.4014 \to 0.9893$!)*
+
+### 4.2 Update Section 5.2 in `manuscript_2_foundation_model_adaptation.md` (Lines 245–265)
+Update the mathematical description of **CDCA-V3** in Section 5.2 so it matches the upgraded `compute_salience_indices()` method:
+1. **De-Rotated Pre-Cache Translation Layer ($\tilde{\boldsymbol{q}}, \tilde{\boldsymbol{k}}$):**
+   $$\tilde{\boldsymbol{k}}_\tau = \text{translate\_k}(\boldsymbol{k}_\tau^{\text{raw}}), \qquad \tilde{\boldsymbol{q}}_t = \text{translate\_q}(\boldsymbol{q}_t^{\text{raw}})$$
+2. **Top-Down De-Rotated & Rotary Observation-Window Alignment ($s_\tau^{\text{td}}$):**
+   Combines stationary de-rotated semantic alignment $\text{Softmax}(\tilde{\boldsymbol{Q}}_{\text{obs}} \tilde{\boldsymbol{K}}_{\text{hist}}^\top / \sqrt{d})$ with rotary query alignment $\text{Softmax}(\boldsymbol{Q}_{\text{obs}}^{\text{RoPE}} \boldsymbol{K}_{\text{hist}}^{\text{RoPE}\top} / \sqrt{d})$ over the final $W_{\text{obs}} = 64$ observation queries.
+3. **Bottom-Up Geometric Surprise ($s_\tau^{\text{bu}}$):**
+   Combines the L2 norm $z$-score $z(\|\tilde{\boldsymbol{k}}_\tau\|_2)$ and local angular novelty $z(1 - \cos(\tilde{\boldsymbol{k}}_\tau, \tilde{\boldsymbol{k}}_{\tau-1}))$.
+4. **Continuous Bidirectional Exponential Diffusion ($\kappa = 16$):**
+   $$\omega_\tau = \left( (s^{\text{td}} + 0.15 \, s^{\text{bu}}) * \kappa \right)_\tau, \qquad \kappa(\delta) = \exp(-0.10 |\delta|), \quad \delta \in [-16, +16]$$
+
+### 4.3 Fix Table 4 in `manuscript_2_foundation_model_adaptation.md` (Lines 289–310)
+1. **Hard NSAL Swap (EXP-23) Column:**
+   Replace `0.0 MiB` and $\infty$ compression with the exact values from [`results/exp23_qwen_nsal_alignment/metrics.json`](../results/exp23_qwen_nsal_alignment/metrics.json):
+   - KV-Cache at $32\text{k}$: **$0.42\text{ MiB}$ ($432.0\text{ KB}$)**
+   - KV-Cache at $262\text{k}$: **$0.42\text{ MiB}$ ($432.0\text{ KB}$)**
+   - Cache Compression ($32\text{k}$): **$932.0\times$**
+   - Cache Compression ($262\text{k}$): **$7,456\times$**
+2. **$\text{H}_2\text{O}$ Eviction & `StreamingLLM` Columns:**
+   Populate every row of `H2O Eviction` and `StreamingLLM` (both the 18-trial NIAH breakdown and the 3 stress-test rows: Retroactive 32k, Unseen UUID, and 3-Needle Synthesis) with the exact measured numbers from the updated `results/exp26_cdca_v3_ablation/metrics.json`.
+3. **Update `EXPERIMENTS.md`:**
+   Update the `EXP-26` entry in [`EXPERIMENTS.md`](../EXPERIMENTS.md) so its tables and takeaways match the updated `results/exp26_cdca_v3_ablation/metrics.json` 100%.
 
 ---
 
 ## Execution Checklist for Agent
 
-- [ ] **Step 1:** Edit [`src/cognitive_dual_control_attention.py`](../src/cognitive_dual_control_attention.py) to implement `CDCA-V3` (continuous tensor-geometric + de-rotated query-guided bidirectional salience diffusion, plus `"streaming_llm"` and `"h2o"` baseline modes, removing hardcoded target strings).
-- [ ] **Step 2:** Create `experiments/run_cdca_v3_ablation.py` and `experiments/modal_cdca_v3_runner.py` (`timeout=300`, `gpu="A10G"`).
-- [ ] **Step 3:** Run `modal run experiments/modal_cdca_v3_runner.py`, verify container spin-down via `modal app list`, and confirm `results/exp26_cdca_v3_ablation/metrics.json` and plots `fig70`–`fig72` are saved.
-- [ ] **Step 4:** Log `EXP-26` in [`EXPERIMENTS.md`](../EXPERIMENTS.md) with exact numbers from `metrics.json`.
-- [ ] **Step 5:** Append the 10 new BibTeX references to [`paper/references.bib`](references.bib).
-- [ ] **Step 6:** Rewrite [`paper/manuscript_2_foundation_model_adaptation.md`](manuscript_2_foundation_model_adaptation.md) following the Phase 4 blueprint, verifying all file links and exact JSON metrics.
+- [x] **1.** Update `compute_salience_indices` in [`src/cognitive_dual_control_attention.py`](../src/cognitive_dual_control_attention.py) (True causal prefix `h2o` + De-rotated & bottom-up surprise `cdca_v3`).
+- [x] **2.** Update [`experiments/run_cdca_v3_ablation.py`](../experiments/run_cdca_v3_ablation.py) and [`experiments/modal_cdca_v3_runner.py`](../experiments/modal_cdca_v3_runner.py) to test all 3 needles (`9182`, `3746`, `5501`) independently and run all stress tests across `"cdca_v3"`, `"h2o"`, and `"streaming_llm"`.
+- [x] **3.** Execute `modal run experiments/modal_cdca_v3_runner.py` (`timeout=300`), verify spin-down with `modal app list`, and regenerate `metrics.json` and `fig70`–`fig72`.
+- [x] **4.** Update Table 3, Section 5.2, and Table 4 in [`paper/manuscript_2_foundation_model_adaptation.md`](manuscript_2_foundation_model_adaptation.md) and the `EXP-26` section in [`EXPERIMENTS.md`](../EXPERIMENTS.md) with the exact numbers from `metrics.json`.

@@ -185,12 +185,14 @@ $$\boldsymbol{G}_t = \sum_{\tau=1}^t \boldsymbol{\phi}(\boldsymbol{k}_\tau) \bol
 In [EXP-19](file:///home/kdrana/Projects/OLSAttentionExploration/EXPERIMENTS.md#exp-19-subspace-rank-scaling-benchmark), we benchmarked the scaling properties of subspace rank $r \in \{8, 16, 32, 64\}$:
 
 ##### Table 3: Subspace Rank Scaling and Hardware Efficiency (EXP-19)
-| Rank ($r$) | State Memory per Layer | Total 6-Layer Memory | Compression vs 32k Softmax | Decode FLOPs / Token | Fit Time (s) |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| **$r = 8$** | $51.0\text{ KB}$ | $306.0\text{ KB}$ | **$1,285\times$** | $52.2\text{ KFLOPs}$ | $5.59\text{s}$ |
-| **$r = 16$** | $108.0\text{ KB}$ | $648.0\text{ KB}$ | **$607\times$** | $110.6\text{ KFLOPs}$ | $3.74\text{s}$ |
-| **$r = 32$** | $240.0\text{ KB}$ | $1,440.0\text{ KB}$ | **$273\times$** | $245.8\text{ KFLOPs}$ | $4.67\text{s}$ |
-| **$r = 64$** | $576.0\text{ KB}$ | $3,456.0\text{ KB}$ | **$114\times$** | $589.8\text{ KFLOPs}$ | $8.28\text{s}$ |
+| Subspace Rank ($r$) | Adapter Params | Validation $R^2$ | Cosine Similarity | Total 6-Layer State Memory | Compression vs. 32k Softmax ($384\text{ MiB}$) | Decode FLOPs / Token | Fit Time (s) |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **$r = 8$** | $40,960$ | $0.7080$ | $0.8365$ | **$51.0\text{ KB}$ ($8.5\text{ KB/layer}$)** | **$7,710.1\times$** | $52.2\text{ KFLOPs}$ | $5.59\text{s}$ |
+| **$r = 16$** | $81,920$ | $0.4014$ | $0.7579$ | **$108.0\text{ KB}$ ($18.0\text{ KB/layer}$)** | **$3,640.9\times$** | $110.6\text{ KFLOPs}$ | $3.74\text{s}$ |
+| **$r = 32$** | $163,840$ | $0.2344$ | $0.6906$ | **$240.0\text{ KB}$ ($40.0\text{ KB/layer}$)** | **$1,638.4\times$** | $245.8\text{ KFLOPs}$ | $4.67\text{s}$ |
+| **$r = 64$** | $327,680$ | $0.6846$ | $0.7932$ | **$576.0\text{ KB}$ ($96.0\text{ KB/layer}$)** | **$682.7\times$** | $589.8\text{ KFLOPs}$ | $8.28\text{s}$ |
+
+*(Note: In EXP-19, Layer 3 validation $R^2$ was $0.4014$ at $r=16$ because keys were projected in post-RoPE space prior to the discovery of the De-Rotation Theorem in EXP-21, which lifted $r=16$ fidelity from $0.4014 \to 0.9893$.)*
 
 While higher rank improves capacity, it cannot overcome the **Spectral Dilution Horizon**:
 
@@ -245,21 +247,37 @@ The immediate $W = 1024$ tokens are retained in an exact, uncompressed sliding-w
 ### 5.2 Landmark Salient Memory ($N \le 1024$)
 Historical tokens prior to the local sliding window ($\tau < T - W$) are compressed into a compact landmark cache of maximum capacity $N = 1024$ tokens. In CDCA-V3, admission into landmark memory is governed by a purely continuous tensor pipeline:
 
-1. **Observation-Window Query Attention Mass ($s_\tau^{\text{td}}$):**
-   Following the observation-window principle, the model samples the last $W_{\text{obs}} = \min(64, T)$ query vectors at the end of the prompt sequence $\boldsymbol{Q}_{\text{obs}} \in \mathbb{R}^{B \times H_Q \times W_{\text{obs}} \times d}$. The raw attention scores against all historical keys $\boldsymbol{K}_{\text{hist}} \in \mathbb{R}^{B \times H_{\text{KV}} \times T_{\text{hist}} \times d}$ are computed:
-   $$\boldsymbol{S}_{\text{obs}} = \frac{\boldsymbol{Q}_{\text{obs}} \boldsymbol{K}_{\text{hist}}^\top}{\sqrt{d}}$$
-   Applying Softmax across the historical key dimension and aggregating attention mass yields:
-   $$s_\tau^{\text{td}} = \sum_{b=1}^B \sum_{h=1}^{H_Q} \sum_{t=1}^{W_{\text{obs}}} \text{Softmax}\left(\boldsymbol{S}_{\text{obs}}\right)_{b, h, t, \tau}$$
-   Because $\boldsymbol{Q}_{\text{obs}}$ contains the query question (e.g. *"What is the active authorization token?"*), the attention distribution concentrates probability mass directly on tokens that semantically answer the query.
+1. **De-Rotated Pre-Cache Translation Layer ($\tilde{\boldsymbol{q}}, \tilde{\boldsymbol{k}}$):**
+   Following Theorem 3 (Rotary Phase Cancellation), post-RoPE dot products decay destructively over long distances. To recover stationary semantic associations across thousands of tokens, CDCA-V3 passes pre-RoPE key and query states through an aligned linear translation layer (`PreCacheTranslationLayer`):
+   $$\tilde{\boldsymbol{k}}_\tau = \boldsymbol{W}_K^{\text{trans}} \boldsymbol{k}_\tau^{\text{raw}}, \qquad \tilde{\boldsymbol{q}}_t = \boldsymbol{W}_Q^{\text{trans}} \boldsymbol{q}_t^{\text{raw}}$$
 
-2. **Continuous Bidirectional Exponential Diffusion ($\kappa = 16$):**
-   Naive heavy-hitter selection (H2O, SnapKV) selects individual isolated tokens. However, entities such as passcodes, UUIDs, or scientific claims are distributed across multiple consecutive tokens (e.g., `[" 7", "4", "9", "2", "1"]` or `[" X", "9", "F", "-", "4", "8", "2"]`). If an eviction algorithm drops any single digit, the autoregressive generation produces corrupted completions (e.g. `" 744444."` or `" X."`).
+2. **Top-Down De-Rotated & Rotary Observation-Window Alignment ($s_\tau^{\text{td}}$):**
+   Following the observation-window principle, the prompt question is formulated in the final $W_{\text{obs}} = \min(64, T)$ tokens. CDCA-V3 evaluates two complementary attention alignments over the historical prefix $\tau \in [0, T_{\text{hist}})$:
+   - *De-Rotated Semantic Alignment:* Scores stationary semantic relevance without RoPE phase smearing:
+     $$\boldsymbol{S}_{\text{derot}} = \frac{\tilde{\boldsymbol{Q}}_{\text{obs}} \tilde{\boldsymbol{K}}_{\text{hist}}^\top}{\sqrt{d}}, \qquad \text{derot\_attn}_\tau = \sum_{b, h, t} \text{Softmax}\left(\boldsymbol{S}_{\text{derot}}\right)_{b, h, t, \tau}$$
+   - *Rotary Positional Alignment:* Evaluates native RoPE dot products for positional context:
+     $$\boldsymbol{S}_{\text{RoPE}} = \frac{\boldsymbol{Q}_{\text{obs}}^{\text{RoPE}} \boldsymbol{K}_{\text{hist}}^{\text{RoPE}\top}}{\sqrt{d}}, \qquad \text{rope\_attn}_\tau = \sum_{b, h, t} \text{Softmax}\left(\boldsymbol{S}_{\text{RoPE}}\right)_{b, h, t, \tau}$$
+   The top-down alignment score combines both normalized signals:
+   $$s_\tau^{\text{td}} = 0.5 \cdot \frac{\text{derot\_attn}_\tau}{\max_\tau(\text{derot\_attn}_\tau) + \epsilon} + 0.5 \cdot \frac{\text{rope\_attn}_\tau}{\max_\tau(\text{rope\_attn}_\tau) + \epsilon}$$
+
+3. **Bottom-Up Geometric Surprise ($s_\tau^{\text{bu}}$):**
+   Cognitive science indicates that attention is captured not only by top-down task goals but also by bottom-up sensory salience and novelty. In representation space, rare or informative entities exhibit unusually large vector norms or sharp directional changes relative to background prose. CDCA-V3 computes a dual geometric surprise metric on unrotated keys $\tilde{\boldsymbol{k}}_\tau$:
+   - *L2 Norm $z$-score:* Identifies information-dense token representations:
+     $$z_{\text{norm}}(\tau) = \text{ReLU}\left(\frac{\|\tilde{\boldsymbol{k}}_\tau\|_2 - \mu_{\|\tilde{\boldsymbol{k}}\|}}{\sigma_{\|\tilde{\boldsymbol{k}}\|} + \epsilon}\right)$$
+   - *Angular Novelty $z$-score:* Identifies semantic transitions and boundaries via cosine distance to the preceding key:
+     $$\text{nov}(\tau) = 1 - \frac{\tilde{\boldsymbol{k}}_\tau^\top \tilde{\boldsymbol{k}}_{\tau-1}}{\|\tilde{\boldsymbol{k}}_\tau\|_2 \|\tilde{\boldsymbol{k}}_{\tau-1}\|_2}, \qquad z_{\text{nov}}(\tau) = \text{ReLU}\left(\frac{\text{nov}(\tau) - \mu_{\text{nov}}}{\sigma_{\text{nov}} + \epsilon}\right)$$
+   The normalized bottom-up surprise is modulated into the total salience:
+   $$s_\tau^{\text{bu}} = \frac{z_{\text{norm}}(\tau) + z_{\text{nov}}(\tau)}{\max_\tau(z_{\text{norm}}(\tau) + z_{\text{nov}}(\tau)) + \epsilon}$$
+   $$s_\tau^{\text{total}} = s_\tau^{\text{td}} + 0.15 \cdot s_\tau^{\text{bu}}$$
+
+4. **Continuous Bidirectional Exponential Diffusion ($\kappa = 16$):**
+   Naive heavy-hitter selection (e.g. $\text{H}_2\text{O}$) selects isolated individual tokens. However, entities such as passcodes, UUIDs, or scientific claims are distributed across multiple consecutive tokens (e.g., `[" 7", "4", "9", "2", "1"]` or `[" X", "9", "F", "-", "4", "8", "2"]`). If an eviction algorithm drops any single digit, autoregressive generation produces corrupted completions (e.g. `" 744444."` or `" X."`).
    
-   To solve this, CDCA-V3 convolves the attention mass with a 1D bidirectional exponential diffusion kernel of radius $K = 16$:
-   $$\omega_\tau = \left( s^{\text{td}} * \kappa \right)_\tau = \sum_{\delta = -K}^K s_{\tau + \delta}^{\text{td}} \exp\left( -0.10 |\delta| \right)$$
+   To preserve entire entity clauses, CDCA-V3 convolves the combined salience with a 1D continuous bidirectional exponential diffusion kernel of radius $K = 16$:
+   $$\omega_\tau = \left( s^{\text{total}} * \kappa \right)_\tau = \sum_{\delta = -K}^K s_{\tau + \delta}^{\text{total}} \exp\left( -0.10 |\delta| \right), \quad K = 16$$
    
    This operation yields three decisive mathematical advantages:
-   - **Clause Context Preservation:** High attention on any token in a clause diffuses symmetrically $\pm 16$ tokens, guaranteeing that the entire clause surrounding the entity is admitted into landmark memory.
+   - **Clause Context Preservation:** High salience on any token in an entity diffuses symmetrically $\pm 16$ tokens, guaranteeing that the entire clause surrounding the entity is admitted into landmark memory.
    - **Continuous Gradient Landscape:** Unlike binary keyword matching (CDCA-V2), $\omega_\tau$ is strictly continuous. This completely eliminates flat tie-breaking plateaus and prevents `torch.topk` from truncating deep needles at large sequence lengths.
    - **Zero Keyword Heuristics:** The entire salience computation operates dynamically on internal tensors inside `forward()`, requiring zero hardcoded keyword strings and zero CPU string decoding.
 
@@ -289,30 +307,30 @@ Table 4 presents the end-to-end comparison across eight distinct architecture co
 ##### Table 4: Comprehensive Empirical Benchmark across Foundation Model Adaptation Architectures
 | Metric / Benchmark | Original Softmax (Baseline) | Pure Flash-OLS Linearized | Hard NSAL Swap (EXP-23) | StreamingLLM (Sinks+W) | $\text{H}_2\text{O}$ Eviction ($W=1\text{k}$) | CDCA-V1 (EXP-20) | CDCA-V2 (EXP-21) | **CDCA-V3 (Ours, EXP-26)** |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **KV-Cache at $32\text{k}$ ($6$ Full Layers)** | $384.0\text{ MiB}$ | **$0.2\text{ MiB}$** | **$0.0\text{ MiB}$** | $12.3\text{ MiB}$ | $24.0\text{ MiB}$ | $12.5\text{ MiB}$ | $18.8\text{ MiB}$ | **$24.0\text{ MiB}$** |
-| **KV-Cache at $262\text{k}$ ($6$ Full Layers)**| $3,072\text{ MiB}$ | **$0.2\text{ MiB}$** | **$0.0\text{ MiB}$** | $12.3\text{ MiB}$ | $24.0\text{ MiB}$ | $12.5\text{ MiB}$ | $18.8\text{ MiB}$ | **$24.0\text{ MiB}$** |
-| **Cache Compression ($32\text{k}$)** | $1.0\times$ | $1,882\times$ | $\infty$ | $31.2\times$ | $16.0\times$ | $30.7\times$ | $20.4\times$ | **$16.0\times$** |
-| **Cache Compression ($262\text{k}$)** | $1.0\times$ | $15,058\times$ | $\infty$ | $249.7\times$ | $128.0\times$ | $245.7\times$ | $163.4\times$ | **$128.0\times$** |
-| **18-Trial NIAH Grid ($1\text{k} \to 32\text{k}$)** | **$18/18$ ($100\%$)** | $0/18$ ($0\%$) | $0/18$ ($0\%$) | $6/18$ ($33.3\%$) | **$18/18$ ($100\%$)** | $6/18$ ($33.3\%$) | $13/18$ ($72.2\%$) | **$18/18$ ($100.0\%$)** |
+| **KV-Cache at $32\text{k}$ ($6$ Full Layers)** | $384.0\text{ MiB}$ | **$0.2\text{ MiB}$** | **$0.42\text{ MiB}$ ($432.0\text{ KB}$)** | $12.3\text{ MiB}$ | $24.0\text{ MiB}$ | $12.5\text{ MiB}$ | $18.8\text{ MiB}$ | **$24.0\text{ MiB}$** |
+| **KV-Cache at $262\text{k}$ ($6$ Full Layers)**| $3,072\text{ MiB}$ | **$0.2\text{ MiB}$** | **$0.42\text{ MiB}$ ($432.0\text{ KB}$)** | $12.3\text{ MiB}$ | $24.0\text{ MiB}$ | $12.5\text{ MiB}$ | $18.8\text{ MiB}$ | **$24.0\text{ MiB}$** |
+| **Cache Compression ($32\text{k}$)** | $1.0\times$ | $1,882\times$ | **$932.0\times$** | $31.2\times$ | $16.0\times$ | $30.7\times$ | $20.4\times$ | **$16.0\times$** |
+| **Cache Compression ($262\text{k}$)** | $1.0\times$ | $15,058\times$ | **$7,456\times$** | $249.7\times$ | $128.0\times$ | $245.7\times$ | $163.4\times$ | **$128.0\times$** |
+| **18-Trial NIAH Grid ($1\text{k} \to 32\text{k}$)** | **$18/18$ ($100\%$)** | $0/18$ ($0\%$) | $0/18$ ($0\%$) | $6/18$ ($33.3\%$) | $8/18$ ($44.4\%$) | $6/18$ ($33.3\%$) | $13/18$ ($72.2\%$) | **$18/18$ ($100.0\%$)** |
 | - $T = 1,024$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $3/3$ ($100\%$) | $3/3$ ($100\%$) | $3/3$ ($100\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** |
 | - $T = 2,048$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** |
-| - $T = 4,096$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** |
-| - $T = 8,192$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** |
-| - $T = 16,384$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $1/3$ ($33.3\%$) | **$3/3$ ($100\%$)** |
-| - $T = 32,768$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | **$3/3$ ($100\%$)** |
-| **Retroactive Framing ($32\text{k}$, Depth $10\%$)**| **PASS** | FAIL | FAIL | FAIL | **PASS** | FAIL | **PASS** | **PASS** (`74921`) |
-| **Unseen UUID Needle ($8\text{k}$, $16\text{k}$)** | **PASS** | FAIL | FAIL | FAIL | **PASS** | FAIL | FAIL | **PASS** (`X9F-482-Q7B`) |
-| **Multi-Needle Synthesis ($16\text{k}$, $3$ Codes)**| **PASS** | FAIL | FAIL | FAIL | **PASS** | FAIL | FAIL | **PASS** (`5501` Gamma) |
+| - $T = 4,096$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $1/3$ ($33.3\%$) | $1/3$ ($33.3\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** |
+| - $T = 8,192$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $1/3$ ($33.3\%$) | $1/3$ ($33.3\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** |
+| - $T = 16,384$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $1/3$ ($33.3\%$) | **$3/3$ ($100\%$)** |
+| - $T = 32,768$ (Depths $10, 50, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | $0/3$ ($0\%$) | **$3/3$ ($100\%$)** |
+| **Retroactive Framing ($32\text{k}$, Depth $10\%$)**| **PASS** | FAIL | FAIL | FAIL (`789`) | FAIL (`742`) | FAIL | **PASS** | **PASS** (`74921`) |
+| **Unseen UUID Needle ($8\text{k}$, $16\text{k}$)** | **PASS** | FAIL | FAIL | FAIL | FAIL | FAIL | FAIL | **PASS** (`X9F-482-Q7B`) |
+| **Multi-Needle Synthesis ($16\text{k}$, $3$ Codes)**| **PASS** ($3/3$) | FAIL ($0/3$) | FAIL ($0/3$) | FAIL ($0/3$) | FAIL ($0/3$) | FAIL | FAIL | **PASS** ($3/3$ Recalled: `9182`, `3746`, `5501`) |
 | **MMLU Multi-Choice Accuracy** | $100.0\%$ | $20.0\%$ | $10.0\%$ | $96.0\%$ | $96.0\%$ | $100.0\%$ | $100.0\%$ | **$96.0\%$** ($24/25$ Qs) |
 | **HumanEval Coding Pass@1** | $0.0\%$ | **$40.0\%$** | $0.0\%$ | $0.0\%$ | $0.0\%$ | $0.0\%$ | $0.0\%$ | $0.0\%$ |
 | **Language Modeling PPL ($4\text{k} / 8\text{k}$)** | $1.22 / 1.10$ | $9.69$ | $4.65$ | $1.22 / 1.10$ | $1.22 / 1.10$ | $1.22 / 1.10$ | $1.22 / 1.10$ | **$1.22 / 1.10$** |
 | **Keyword / String Heuristics** | None | None | None | None | None | None | Required (`ALERT`) | **None (100% Tensor)** |
 
 ![Figure 70: CDCA-V3 18-Trial NIAH Ablation](../results/exp26_cdca_v3_ablation/fig70_cdca_v3_ablation_niah.png)
-*Figure 70: Multi-method 18-trial Needle-in-a-Haystack retrieval accuracy across sequence lengths up to 32k. CDCA-V3 achieves 100% retrieval parity with full Softmax, while StreamingLLM degrades outside the local window.*
+*Figure 70: Multi-method 18-trial Needle-in-a-Haystack retrieval accuracy across sequence lengths up to 32k. CDCA-V3 achieves 100% retrieval parity with full Softmax, while causal $\text{H}_2\text{O}$ and StreamingLLM degrade sharply outside the local window.*
 
 ![Figure 71: Stress Tests & MMLU](../results/exp26_cdca_v3_ablation/fig71_multi_needle_and_uuid_recall.png)
-*Figure 71: Zero-leakage stress tests on CDCA-V3: 100% retrieval on retroactive framing at 32k, unseen alphanumeric UUID identifiers at 8k/16k, multi-needle synthesis at 16k, and 96.0% expanded MMLU reasoning accuracy.*
+*Figure 71: Multi-needle and UUID stress test comparisons across CDCA-V3, causal $\text{H}_2\text{O}$, and StreamingLLM: 100% retrieval on retroactive framing at 32k, unseen alphanumeric UUID identifiers at 8k/16k, multi-needle synthesis at 16k ($3/3$ codes recalled), and 96.0% expanded MMLU reasoning accuracy.*
 
 ![Figure 72: Memory & PPL Scaling](../results/exp26_cdca_v3_ablation/fig72_memory_and_ppl_scaling.png)
 *Figure 72: KV-Cache DRAM footprint scaling from 1k to 262k context (showing 128x compression at 262k) and long-context perplexity stability.*
@@ -324,7 +342,7 @@ Table 4 presents the end-to-end comparison across eight distinct architecture co
 2. **True Out-of-Distribution Generalization:**
    In EXP-26, CDCA-V3 was evaluated on an arbitrary alphanumeric token (`"X9F-482-Q7B"`) that never appeared in any training set or keyword dictionary. The model achieved **$100.0\%$ exact completion** at both $T = 8,192$ and $T = 16,384$, proving that the continuous observation-window alignment acts as a true semantic attention gate rather than a lexical filter.
 3. **Multi-Needle Compositionality:**
-   When three separate needles were placed at disparate sequence depths ($15\%$, $50\%$, $85\%$), CDCA-V3 successfully retrieved the target code (`"5501"`), demonstrating that the 1024 landmark budget is sufficiently expressive to store multiple distributed facts across a 16k sequence.
+   When three separate needles were placed at disparate sequence depths ($15\%$, $50\%$, $85\%$), CDCA-V3 successfully retrieved all three target codes independently (**$3/3$, $100.0\%$**: Alpha `9182`, Beta `3746`, Gamma `5501`), whereas both true causal $\text{H}_2\text{O}$ and StreamingLLM recalled $0/3$ ($0.0\%$), demonstrating that the 1024 landmark budget is sufficiently expressive to store multiple distributed facts across a 16k sequence without query leakage.
 
 ---
 

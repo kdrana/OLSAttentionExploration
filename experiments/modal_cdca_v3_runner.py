@@ -140,36 +140,44 @@ def generate_exp26_plots_cloud(metrics: dict) -> dict[str, bytes]:
     plots["fig70_cdca_v3_ablation_niah.png"] = buf.getvalue()
 
     # -------------------------------------------------------------
-    # Figure 71: Multi-Needle, UUID, & Retroactive Stress Tests
+    # Figure 71: Multi-Method Stress Tests (CDCA-V3 vs H2O vs StreamingLLM)
     # -------------------------------------------------------------
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.2), dpi=300)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.2), dpi=300)
 
-    stress = metrics["stress_tests"]
-    test_names = [
-        "Retroactive\nNeedle (32k)",
-        "Unseen UUID\nNeedle (8k)",
-        "Unseen UUID\nNeedle (16k)",
-        "Multi-Needle\nSynthesis (16k)",
-    ]
-    test_results = [
-        1.0 if stress["retroactive_framing_32k"].get("success", False) else 0.0,
-        1.0 if stress["uuid_needle_8k"].get("success", False) else 0.0,
-        1.0 if stress["uuid_needle_16k"].get("success", False) else 0.0,
-        1.0 if stress["multi_needle_16k"].get("success", False) else 0.0,
-    ]
-    colors_stress = ["#27ae60" if r == 1.0 else "#e74c3c" for r in test_results]
+    stress_tests = ["Retroactive (32k)", "UUID (8k)", "UUID (16k)", "Multi-Needle (16k)"]
+    x = np.arange(len(stress_tests))
+    width = 0.26
 
-    bars1 = ax1.bar(test_names, [r * 100 for r in test_results], color=colors_stress, width=0.5, edgecolor="black", linewidth=1.2)
-    ax1.set_title("CDCA-V3 Stress Tests: Generalization & Zero-Leakage", fontsize=12, fontweight="bold")
+    def get_stress_scores(method_dict):
+        retro = 100.0 if method_dict.get("retroactive_framing_32k", {}).get("success", False) else 0.0
+        u8 = 100.0 if method_dict.get("uuid_needle_8k", {}).get("success", False) else 0.0
+        u16 = 100.0 if method_dict.get("uuid_needle_16k", {}).get("success", False) else 0.0
+        mn_info = method_dict.get("multi_needle_16k", {})
+        mn = float(mn_info.get("needles_recalled", 1 if mn_info.get("success", False) else 0)) / 3.0 * 100.0
+        return [retro, u8, u16, mn]
+
+    s_scores = get_stress_scores(metrics["stress_tests"].get("streaming_llm", {}))
+    h_scores = get_stress_scores(metrics["stress_tests"].get("h2o", {}))
+    c_scores = get_stress_scores(metrics["stress_tests"].get("cdca_v3", metrics["stress_tests"]))
+
+    rects1 = ax1.bar(x - width, s_scores, width, label="StreamingLLM (W=1024+4)", color="#e74c3c", edgecolor="black")
+    rects2 = ax1.bar(x, h_scores, width, label="Causal H2O (W=1024+1024)", color="#f39c12", edgecolor="black")
+    rects3 = ax1.bar(x + width, c_scores, width, label="CDCA-V3 (Ours)", color="#27ae60", edgecolor="black")
+
+    ax1.set_title("Stress Tests: Generalization & Zero-Leakage Retrieval", fontsize=12, fontweight="bold")
     ax1.set_ylabel("Retrieval Success (%)", fontsize=11, fontweight="bold")
-    ax1.set_ylim(0, 120)
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(stress_tests, fontsize=10, fontweight="bold")
+    ax1.set_ylim(0, 125)
+    ax1.legend(loc="upper left", frameon=True, fontsize=9)
     ax1.grid(True, axis="y", linestyle="--", alpha=0.6)
 
-    for bar, r in zip(bars1, test_results):
-        txt = "PASS (100%)" if r == 1.0 else "FAIL (0%)"
-        ax1.annotate(txt, xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
-                     xytext=(0, 4), textcoords="offset points", ha="center", va="bottom",
-                     fontsize=9.5, fontweight="bold")
+    for rects in [rects1, rects2, rects3]:
+        for rect in rects:
+            h = rect.get_height()
+            ax1.annotate(f"{h:.0f}%", xy=(rect.get_x() + rect.get_width() / 2, h),
+                         xytext=(0, 3), textcoords="offset points", ha="center", va="bottom",
+                         fontsize=8, fontweight="bold")
 
     # Right panel: Expanded MMLU Reasoning Accuracy
     mmlu_acc = metrics["academic_benchmarks"]["mmlu_expanded_25q_pct"]

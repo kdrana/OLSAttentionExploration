@@ -128,7 +128,7 @@
           "target_length": 1024,
           "depth": 0.1,
           "success": true,
-          "gen_time_s": 0.6050872929999969,
+          "gen_time_s": 0.6230998039999989,
           "peak_vram_mb": 1595.24853515625,
           "attn_state_kb": 12288.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -138,7 +138,7 @@
           "target_length": 1024,
           "depth": 0.5,
           "success": true,
-          "gen_time_s": 0.593954606000004,
+          "gen_time_s": 0.6184734439999957,
           "peak_vram_mb": 1595.24853515625,
           "attn_state_kb": 12288.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -148,7 +148,7 @@
           "target_length": 1024,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 0.5966545799999992,
+          "gen_time_s": 0.6338276260000058,
           "peak_vram_mb": 1595.24853515625,
           "attn_state_kb": 12288.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -158,7 +158,7 @@
           "target_length": 2048,
           "depth": 0.1,
           "success": false,
-          "gen_time_s": 0.667235104999996,
+          "gen_time_s": 0.6709068740000035,
           "peak_vram_mb": 1719.90576171875,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -168,7 +168,7 @@
           "target_length": 2048,
           "depth": 0.5,
           "success": false,
-          "gen_time_s": 0.6806642140000037,
+          "gen_time_s": 0.6731639139999999,
           "peak_vram_mb": 1719.90576171875,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -178,7 +178,7 @@
           "target_length": 2048,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 0.6667314039999965,
+          "gen_time_s": 0.6892481580000052,
           "peak_vram_mb": 1719.90576171875,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -188,7 +188,7 @@
           "target_length": 4096,
           "depth": 0.1,
           "success": false,
-          "gen_time_s": 0.8423816999999971,
+          "gen_time_s": 0.8444297640000045,
           "peak_vram_mb": 1969.14208984375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -198,7 +198,7 @@
           "target_length": 4096,
           "depth": 0.5,
           "success": false,
-          "gen_time_s": 0.8375169749999998,
+          "gen_time_s": 0.8758457130000039,
           "peak_vram_mb": 1969.14208984375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -208,7 +208,7 @@
           "target_length": 4096,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 0.8542694719999986,
+          "gen_time_s": 0.8777597580000034,
           "peak_vram_mb": 1969.14208984375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -218,7 +218,7 @@
           "target_length": 8192,
           "depth": 0.1,
           "success": false,
-          "gen_time_s": 1.2196869949999964,
+          "gen_time_s": 1.2469566900000046,
           "peak_vram_mb": 2467.61474609375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -228,7 +228,7 @@
           "target_length": 8192,
           "depth": 0.5,
           "success": false,
-          "gen_time_s": 1.2142175669999986,
+          "gen_time_s": 1.2181050949999985,
           "peak_vram_mb": 2467.61474609375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -238,7 +238,7 @@
           "target_length": 8192,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 1.213400643,
+          "gen_time_s": 1.2278554939999964,
           "peak_vram_mb": 2467.61474609375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -248,7 +248,7 @@
           "target_length": 16384,
           "depth": 0.1,
           "success": false,
-          "gen_time_s": 2.053657076999997,
+          "gen_time_s": 2.0878821390000013,
           "peak_vram_mb": 3464.56005859375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -258,7 +258,7 @@
           "target_length": 16384,
           "depth": 0.5,
           "success": false,
-          "gen_time_s": 2.0617622179999984,
+          "gen_time_s": 2.111942694000007,
           "peak_vram_mb": 3464.56005859375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -268,7 +268,7 @@
           "target_length": 16384,
           "depth": 0.9,
           "success": false,
-          "gen_time_s": 2.048881602999998,
+          "gen_time_s": 2.097281675000005,
           "peak_vram_mb": 3464.56005859375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -278,7 +278,7 @@
           "target_length": 32768,
           "depth": 0.1,
           "success": false,
-          "gen_time_s": 4.40702800199999,
+          "gen_time_s": 4.475641652999997,
           "peak_vram_mb": 5459.41943359375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -288,7 +288,7 @@
           "target_length": 32768,
           "depth": 0.5,
           "success": false,
-          "gen_time_s": 4.398097485000008,
+          "gen_time_s": 4.508263071000002,
           "peak_vram_mb": 5459.41943359375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -298,7 +298,7 @@
           "target_length": 32768,
           "depth": 0.9,
           "success": false,
-          "gen_time_s": 4.394939328000007,
+          "gen_time_s": 4.493924084,
           "peak_vram_mb": 5459.41943359375,
           "attn_state_kb": 24576.0,
           "gen_text": " 742.\nQuestion: What is the secret operational access code for"
@@ -306,16 +306,16 @@
       ]
     },
     "h2o": {
-      "success_count": 18,
+      "success_count": 8,
       "total_count": 18,
-      "success_rate_pct": 100.0,
+      "success_rate_pct": 44.4,
       "trials": [
         {
           "context_length": 1024,
           "target_length": 1024,
           "depth": 0.1,
           "success": true,
-          "gen_time_s": 0.601245715999994,
+          "gen_time_s": 0.6383050529999963,
           "peak_vram_mb": 1595.24853515625,
           "attn_state_kb": 12288.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -325,7 +325,7 @@
           "target_length": 1024,
           "depth": 0.5,
           "success": true,
-          "gen_time_s": 0.6104685619999941,
+          "gen_time_s": 0.6173334439999962,
           "peak_vram_mb": 1595.24853515625,
           "attn_state_kb": 12288.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -335,7 +335,7 @@
           "target_length": 1024,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 0.5976292699999988,
+          "gen_time_s": 0.6361850959999913,
           "peak_vram_mb": 1595.24853515625,
           "attn_state_kb": 12288.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -345,7 +345,7 @@
           "target_length": 2048,
           "depth": 0.1,
           "success": true,
-          "gen_time_s": 0.6774116399999883,
+          "gen_time_s": 0.7003551399999992,
           "peak_vram_mb": 1729.86669921875,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -355,7 +355,7 @@
           "target_length": 2048,
           "depth": 0.5,
           "success": true,
-          "gen_time_s": 0.666142949999994,
+          "gen_time_s": 0.6916526459999943,
           "peak_vram_mb": 1729.86669921875,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -365,7 +365,7 @@
           "target_length": 2048,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 0.668179109999997,
+          "gen_time_s": 0.7095216040000025,
           "peak_vram_mb": 1729.86669921875,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -374,28 +374,28 @@
           "context_length": 4096,
           "target_length": 4096,
           "depth": 0.1,
-          "success": true,
-          "gen_time_s": 0.8409388999999976,
+          "success": false,
+          "gen_time_s": 0.8751633220000059,
           "peak_vram_mb": 1979.10302734375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the secret operational access"
+          "gen_text": " 777777777777777"
         },
         {
           "context_length": 4096,
           "target_length": 4096,
           "depth": 0.5,
-          "success": true,
-          "gen_time_s": 0.8536187050000024,
+          "success": false,
+          "gen_time_s": 0.872620313000013,
           "peak_vram_mb": 1979.10302734375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the secret operational access"
+          "gen_text": " 742.\nQuestion: What is the secret operational access code for"
         },
         {
           "context_length": 4096,
           "target_length": 4096,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 0.8634392199999894,
+          "gen_time_s": 0.8676792529999915,
           "peak_vram_mb": 1979.10302734375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -404,28 +404,28 @@
           "context_length": 8192,
           "target_length": 8192,
           "depth": 0.1,
-          "success": true,
-          "gen_time_s": 1.2238964989999914,
+          "success": false,
+          "gen_time_s": 1.2339956400000034,
           "peak_vram_mb": 2477.57568359375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the secret operational access"
+          "gen_text": " 742.\nQuestion: What is the secret operational access code for"
         },
         {
           "context_length": 8192,
           "target_length": 8192,
           "depth": 0.5,
-          "success": true,
-          "gen_time_s": 1.2355999969999942,
+          "success": false,
+          "gen_time_s": 1.264395007999994,
           "peak_vram_mb": 2477.57568359375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the secret operational access"
+          "gen_text": " 7.\nQuestion: What is the secret operational access code for Project Ant"
         },
         {
           "context_length": 8192,
           "target_length": 8192,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 1.2279087639999915,
+          "gen_time_s": 1.2737157490000044,
           "peak_vram_mb": 2477.57568359375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -434,61 +434,61 @@
           "context_length": 16384,
           "target_length": 16384,
           "depth": 0.1,
-          "success": true,
-          "gen_time_s": 2.057964173000002,
+          "success": false,
+          "gen_time_s": 2.1244250609999966,
           "peak_vram_mb": 3474.52099609375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the secret operational access"
+          "gen_text": " 7.\nQuestion: What is the secret operational access code for Project Ant"
         },
         {
           "context_length": 16384,
           "target_length": 16384,
           "depth": 0.5,
-          "success": true,
-          "gen_time_s": 2.062651070000001,
+          "success": false,
+          "gen_time_s": 2.123802209999994,
           "peak_vram_mb": 3474.52099609375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the secret operational access"
+          "gen_text": " 723456.\nQuestion: What is the secret operational"
         },
         {
           "context_length": 16384,
           "target_length": 16384,
           "depth": 0.9,
-          "success": true,
-          "gen_time_s": 2.075185592000011,
+          "success": false,
+          "gen_time_s": 2.1088222669999936,
           "peak_vram_mb": 3474.52099609375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the secret operational access"
+          "gen_text": " 742.\nQuestion: What is the secret operational access code for"
         },
         {
           "context_length": 32768,
           "target_length": 32768,
           "depth": 0.1,
-          "success": true,
-          "gen_time_s": 4.411878304999988,
+          "success": false,
+          "gen_time_s": 4.494394031000013,
           "peak_vram_mb": 5469.38037109375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the mathematical formulation of"
+          "gen_text": " 742.\nQuestion: What is the secret operational access code for"
         },
         {
           "context_length": 32768,
           "target_length": 32768,
           "depth": 0.5,
-          "success": true,
-          "gen_time_s": 4.414195648999993,
+          "success": false,
+          "gen_time_s": 4.492330611,
           "peak_vram_mb": 5469.38037109375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the secret operational access"
+          "gen_text": " 74.\nQuestion: What is the secret operational access code for Project"
         },
         {
           "context_length": 32768,
           "target_length": 32768,
           "depth": 0.9,
-          "success": true,
-          "gen_time_s": 4.433488741999994,
+          "success": false,
+          "gen_time_s": 4.518681371,
           "peak_vram_mb": 5469.38037109375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the secret operational access"
+          "gen_text": " 742.\nQuestion: What is the secret operational access code for"
         }
       ]
     },
@@ -502,7 +502,7 @@
           "target_length": 1024,
           "depth": 0.1,
           "success": true,
-          "gen_time_s": 1.4137816689999987,
+          "gen_time_s": 1.2445205389999998,
           "peak_vram_mb": 1596.24853515625,
           "attn_state_kb": 12288.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -512,7 +512,7 @@
           "target_length": 1024,
           "depth": 0.5,
           "success": true,
-          "gen_time_s": 0.594297362999999,
+          "gen_time_s": 0.6038143269999985,
           "peak_vram_mb": 1595.24853515625,
           "attn_state_kb": 12288.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -522,7 +522,7 @@
           "target_length": 1024,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 0.5972065109999996,
+          "gen_time_s": 0.6137503229999979,
           "peak_vram_mb": 1595.24853515625,
           "attn_state_kb": 12288.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -532,7 +532,7 @@
           "target_length": 2048,
           "depth": 0.1,
           "success": true,
-          "gen_time_s": 1.1177684009999993,
+          "gen_time_s": 1.1526845319999985,
           "peak_vram_mb": 1729.86669921875,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -542,7 +542,7 @@
           "target_length": 2048,
           "depth": 0.5,
           "success": true,
-          "gen_time_s": 0.6689088840000004,
+          "gen_time_s": 0.6935837420000013,
           "peak_vram_mb": 1729.86669921875,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -552,7 +552,7 @@
           "target_length": 2048,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 0.6677064320000028,
+          "gen_time_s": 0.6816794219999984,
           "peak_vram_mb": 1729.86669921875,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -562,7 +562,7 @@
           "target_length": 4096,
           "depth": 0.1,
           "success": true,
-          "gen_time_s": 0.8538194640000007,
+          "gen_time_s": 0.8758008120000014,
           "peak_vram_mb": 1979.10302734375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -572,7 +572,7 @@
           "target_length": 4096,
           "depth": 0.5,
           "success": true,
-          "gen_time_s": 0.8517790930000011,
+          "gen_time_s": 0.8662422849999984,
           "peak_vram_mb": 1979.10302734375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -582,7 +582,7 @@
           "target_length": 4096,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 0.8583873240000024,
+          "gen_time_s": 0.8577474370000004,
           "peak_vram_mb": 1979.10302734375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -592,7 +592,7 @@
           "target_length": 8192,
           "depth": 0.1,
           "success": true,
-          "gen_time_s": 1.2181193430000015,
+          "gen_time_s": 1.253733614999998,
           "peak_vram_mb": 2477.57568359375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -602,7 +602,7 @@
           "target_length": 8192,
           "depth": 0.5,
           "success": true,
-          "gen_time_s": 1.2236148040000003,
+          "gen_time_s": 1.2713643479999988,
           "peak_vram_mb": 2477.57568359375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -612,7 +612,7 @@
           "target_length": 8192,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 1.2214942310000012,
+          "gen_time_s": 1.273287357000001,
           "peak_vram_mb": 2477.57568359375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -622,7 +622,7 @@
           "target_length": 16384,
           "depth": 0.1,
           "success": true,
-          "gen_time_s": 2.0911389489999976,
+          "gen_time_s": 2.1494636520000014,
           "peak_vram_mb": 3474.52099609375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -632,7 +632,7 @@
           "target_length": 16384,
           "depth": 0.5,
           "success": true,
-          "gen_time_s": 2.0648830509999954,
+          "gen_time_s": 2.138805248000004,
           "peak_vram_mb": 3474.52099609375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -642,7 +642,7 @@
           "target_length": 16384,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 2.0723026759999996,
+          "gen_time_s": 2.135922483999998,
           "peak_vram_mb": 3474.52099609375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -652,17 +652,17 @@
           "target_length": 32768,
           "depth": 0.1,
           "success": true,
-          "gen_time_s": 4.392484725000003,
+          "gen_time_s": 4.539081383000003,
           "peak_vram_mb": 5469.38037109375,
           "attn_state_kb": 24576.0,
-          "gen_text": " 74921.\nQuestion: What is the mathematical formulation of"
+          "gen_text": " 74921.\nQuestion: What is the secret operational access"
         },
         {
           "context_length": 32768,
           "target_length": 32768,
           "depth": 0.5,
           "success": true,
-          "gen_time_s": 4.3743022689999975,
+          "gen_time_s": 4.497834363999999,
           "peak_vram_mb": 5469.38037109375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -672,7 +672,7 @@
           "target_length": 32768,
           "depth": 0.9,
           "success": true,
-          "gen_time_s": 4.380381990000004,
+          "gen_time_s": 4.523998327000001,
           "peak_vram_mb": 5469.38037109375,
           "attn_state_kb": 24576.0,
           "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -686,7 +686,7 @@
       "target_length": 32768,
       "depth": 0.1,
       "success": true,
-      "gen_time_s": 4.421003485,
+      "gen_time_s": 4.553150378999987,
       "peak_vram_mb": 5469.38037109375,
       "attn_state_kb": 24576.0,
       "gen_text": " 74921.\nQuestion: What is the secret operational access"
@@ -696,7 +696,7 @@
       "target_length": 8192,
       "depth": 0.5,
       "success": true,
-      "gen_time_s": 1.2403047090000001,
+      "gen_time_s": 1.2934061500000098,
       "peak_vram_mb": 2477.57568359375,
       "attn_state_kb": 24576.0,
       "gen_text": " X9F-482-Q7B.\nQuestion: What is"
@@ -706,15 +706,194 @@
       "target_length": 16384,
       "depth": 0.5,
       "success": true,
-      "gen_time_s": 2.0598709079999935,
+      "gen_time_s": 2.1386259969999912,
       "peak_vram_mb": 3474.52099609375,
       "attn_state_kb": 24576.0,
       "gen_text": " X9F-482-Q7B.\nQuestion: What is"
     },
     "multi_needle_16k": {
+      "alpha": {
+        "expected": "9182",
+        "success": true,
+        "gen_text": " 9182.\nQuestion: What is the Beta authorization code?"
+      },
+      "beta": {
+        "expected": "3746",
+        "success": true,
+        "gen_text": " 3746.\nQuestion: What is the Gamma authorization code?"
+      },
+      "gamma": {
+        "expected": "5501",
+        "success": true,
+        "gen_text": " 5501.\nQuestion: What is the Alpha authorization code?"
+      },
+      "needles_recalled": 3,
+      "total_needles": 3,
+      "all_recalled": true,
       "context_length": 16384,
-      "success": true,
-      "gen_text": " 5501.\nQuestion: What is the purpose of the codes"
+      "success": true
+    },
+    "cdca_v3": {
+      "retroactive_framing_32k": {
+        "context_length": 32768,
+        "target_length": 32768,
+        "depth": 0.1,
+        "success": true,
+        "gen_time_s": 4.553150378999987,
+        "peak_vram_mb": 5469.38037109375,
+        "attn_state_kb": 24576.0,
+        "gen_text": " 74921.\nQuestion: What is the secret operational access"
+      },
+      "uuid_needle_8k": {
+        "context_length": 8192,
+        "target_length": 8192,
+        "depth": 0.5,
+        "success": true,
+        "gen_time_s": 1.2934061500000098,
+        "peak_vram_mb": 2477.57568359375,
+        "attn_state_kb": 24576.0,
+        "gen_text": " X9F-482-Q7B.\nQuestion: What is"
+      },
+      "uuid_needle_16k": {
+        "context_length": 16384,
+        "target_length": 16384,
+        "depth": 0.5,
+        "success": true,
+        "gen_time_s": 2.1386259969999912,
+        "peak_vram_mb": 3474.52099609375,
+        "attn_state_kb": 24576.0,
+        "gen_text": " X9F-482-Q7B.\nQuestion: What is"
+      },
+      "multi_needle_16k": {
+        "alpha": {
+          "expected": "9182",
+          "success": true,
+          "gen_text": " 9182.\nQuestion: What is the Beta authorization code?"
+        },
+        "beta": {
+          "expected": "3746",
+          "success": true,
+          "gen_text": " 3746.\nQuestion: What is the Gamma authorization code?"
+        },
+        "gamma": {
+          "expected": "5501",
+          "success": true,
+          "gen_text": " 5501.\nQuestion: What is the Alpha authorization code?"
+        },
+        "needles_recalled": 3,
+        "total_needles": 3,
+        "all_recalled": true,
+        "context_length": 16384,
+        "success": true
+      }
+    },
+    "h2o": {
+      "retroactive_framing_32k": {
+        "context_length": 32768,
+        "target_length": 32768,
+        "depth": 0.1,
+        "success": false,
+        "gen_time_s": 4.518135290000004,
+        "peak_vram_mb": 5469.38037109375,
+        "attn_state_kb": 24576.0,
+        "gen_text": " 742.\nQuestion: What is the secret operational access code for"
+      },
+      "uuid_needle_8k": {
+        "context_length": 8192,
+        "target_length": 8192,
+        "depth": 0.5,
+        "success": false,
+        "gen_time_s": 1.2742409329999873,
+        "peak_vram_mb": 2477.57568359375,
+        "attn_state_kb": 24576.0,
+        "gen_text": " X9F-482-Q7.\nQuestion: What is the"
+      },
+      "uuid_needle_16k": {
+        "context_length": 16384,
+        "target_length": 16384,
+        "depth": 0.5,
+        "success": false,
+        "gen_time_s": 2.103131836999978,
+        "peak_vram_mb": 3474.52099609375,
+        "attn_state_kb": 24576.0,
+        "gen_text": " X-1234567890.\nQuestion:"
+      },
+      "multi_needle_16k": {
+        "alpha": {
+          "expected": "9182",
+          "success": false,
+          "gen_text": " 9876543210.\nQuestion: What"
+        },
+        "beta": {
+          "expected": "3746",
+          "success": false,
+          "gen_text": " 3.\nQuestion: What is the Alpha authorization code? Answer: The"
+        },
+        "gamma": {
+          "expected": "5501",
+          "success": false,
+          "gen_text": " 5872.\nQuestion: What is the Alpha authorization code?"
+        },
+        "needles_recalled": 0,
+        "total_needles": 3,
+        "all_recalled": false,
+        "context_length": 16384,
+        "success": false
+      }
+    },
+    "streaming_llm": {
+      "retroactive_framing_32k": {
+        "context_length": 32768,
+        "target_length": 32768,
+        "depth": 0.1,
+        "success": false,
+        "gen_time_s": 4.494596499000011,
+        "peak_vram_mb": 5459.41943359375,
+        "attn_state_kb": 24576.0,
+        "gen_text": " 789.\nQuestion: What is the secret operational access code for"
+      },
+      "uuid_needle_8k": {
+        "context_length": 8192,
+        "target_length": 8192,
+        "depth": 0.5,
+        "success": false,
+        "gen_time_s": 1.2700638940000033,
+        "peak_vram_mb": 2467.61474609375,
+        "attn_state_kb": 24576.0,
+        "gen_text": " X-Auth-2024-001.\nQuestion:"
+      },
+      "uuid_needle_16k": {
+        "context_length": 16384,
+        "target_length": 16384,
+        "depth": 0.5,
+        "success": false,
+        "gen_time_s": 2.0881031989999883,
+        "peak_vram_mb": 3464.56005859375,
+        "attn_state_kb": 24576.0,
+        "gen_text": " X-Auth-2024-001.\nQuestion:"
+      },
+      "multi_needle_16k": {
+        "alpha": {
+          "expected": "9182",
+          "success": false,
+          "gen_text": " 9876543210.\nQuestion: What"
+        },
+        "beta": {
+          "expected": "3746",
+          "success": false,
+          "gen_text": " 342.\nQuestion: What is the Alpha authorization code? Answer"
+        },
+        "gamma": {
+          "expected": "5501",
+          "success": false,
+          "gen_text": " 5872.\nQuestion: What is the Gamma authorization code?"
+        },
+        "needles_recalled": 0,
+        "total_needles": 3,
+        "all_recalled": false,
+        "context_length": 16384,
+        "success": false
+      }
     }
   },
   "academic_benchmarks": {

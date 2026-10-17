@@ -33,7 +33,7 @@ This registry tracks all empirical investigations conducted in this repository. 
 | [EXP-23-QWEN-NSAL](#exp-23-qwen-35-08b-native-solvable-attention-replacement--alignment) | Qwen-3.5-0.8B Native Solvable Attention Replacement & Alignment | Modal NVIDIA A10G GPU | Completed | Loss, MMLU %, KV-Cache Compression | Discovers Representational Shock Theorem: unaligned hard-swapping intermediate layers scrambles deep residual distributions ($15.56 \to 4.65$ loss, $10.0\%$ MMLU). |
 | [EXP-24-NSAL-LM](#exp-24-full-native-solvable-attention-language-model-nsal-lm-pretraining) | Full Native Solvable Attention Language Model (NSAL-LM) Pretraining | Modal NVIDIA A10G GPU | Completed | Val Loss, Val PPL, KV-Cache Size | Pretrains clean-slate 6-layer NSAL-LM with zero KV-cache ($0.0\text{ MB}$ vs $3.0\text{ GB}$ Softmax at 262k); validates $O(1)$ memory scaling with smooth convergence ($2.23$ loss). |
 | [EXP-25-KG-LTM](#exp-25-cognitive-knowledge-graph-long-term-memory-ckg-ltm) | Cognitive Knowledge-Graph Long-Term Memory (CKG-LTM) | Modal NVIDIA A10G GPU | Completed | Multi-Hop Acc %, Noise Rejection %, State Memory | Memory consolidation pipeline with surprise tagging and repetition gating; achieves $98.3\%$ distractor noise rejection, $46.88\%$ multi-hop accuracy (vs $0.0\%$ Softmax/RLS), and strict $128.0\text{ KB}$ invariant memory. |
-| [EXP-26-CDCA-V3](#exp-26-cdca-v3-ablation-suite) | Cognitive Dual-Control Memory Ablation Suite (CDCA-V3) | Modal NVIDIA A10G GPU | Completed | 18-Trial NIAH %, UUID Acc %, Expanded MMLU % | Continuous Query Attention + Bidirectional Diffusion achieves $18/18$ ($100.0\%$) NIAH accuracy, $100\%$ unseen UUID & Multi-Needle recall, $96.0\%$ expanded MMLU, and $16.0\times$ cache compression at 32k with zero keyword lists. |
+| [EXP-26-CDCA-V3](#exp-26-cdca-v3-ablation-suite) | Cognitive Dual-Control Memory Ablation Suite (CDCA-V3) | Modal NVIDIA A10G GPU | Completed | 18-Trial NIAH %, UUID Acc %, Expanded MMLU % | Continuous Query Attention + Bidirectional Diffusion achieves $18/18$ ($100.0\%$) NIAH accuracy (vs $44.4\%$ causal $\text{H}_2\text{O}$ and $33.3\%$ StreamingLLM), $100\%$ unseen UUID & Multi-Needle ($3/3$) recall, $96.0\%$ expanded MMLU, and $16.0\times$ cache compression at 32k with zero keyword lists. |
 
 
 
@@ -1427,19 +1427,19 @@ In EXP-21, CDCA-V2 achieved $72.2\%$ NIAH retrieval but failed on long haystacks
 
 #### Quantitative Results Table (NVIDIA A10G Cloud GPU)
 
-| Benchmark Metric | Original Softmax (Baseline) | StreamingLLM ($W=1024+4$) | $\text{H}_2\text{O}$ Eviction ($W=1024+1024$) | **CDCA-V3 (Ours)** | Advantage / Takeaway |
+| Benchmark Metric | Original Softmax (Baseline) | StreamingLLM ($W=1024+4$) | Causal $\text{H}_2\text{O}$ Eviction ($W=1024+1024$) | **CDCA-V3 (Ours)** | Advantage / Takeaway |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **18-Trial NIAH Grid ($1\text{k} \to 32\text{k}$)** | **$18/18$ ($100.0\%$)** | $6/18$ ($33.3\%$) | **$18/18$ ($100.0\%$)** | **$18/18$ ($100.0\%$)** | **Flawless $100\%$ retrieval without keywords** |
+| **18-Trial NIAH Grid ($1\text{k} \to 32\text{k}$)** | **$18/18$ ($100.0\%$)** | $6/18$ ($33.3\%$) | $8/18$ ($44.4\%$) | **$18/18$ ($100.0\%$)** | **Flawless $100\%$ retrieval without keywords** |
 | - $T = 1,024$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $3/3$ ($100\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** | Exact local window binding |
 | - $T = 2,048$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** | All history retained in landmark cache |
-| - $T = 4,096$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** | Diffusion preserves clause context |
-| - $T = 8,192$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** | Zero tie-breaking truncation |
-| - $T = 16,384$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0.0\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** | Rescues deep positions (vs EXP-21 fail) |
-| - $T = 32,768$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0.0\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** | Perfect retrieval at 32k context |
-| **Retroactive Framing ($32\text{k}$, Depth $10\%$)** | **PASS** | FAIL | **PASS** | **PASS** (`74921`) | Backward diffusion recovers payload |
-| **Unseen Arbitrary UUID Needle ($8\text{k}$)** | **PASS** | FAIL | **PASS** | **PASS** (`X9F-482-Q7B`) | Zero keyword leakage |
-| **Unseen Arbitrary UUID Needle ($16\text{k}$)** | **PASS** | FAIL | **PASS** | **PASS** (`X9F-482-Q7B`) | Zero keyword leakage |
-| **Multi-Needle Synthesis ($16\text{k}$, 3 Codes)** | **PASS** | FAIL | **PASS** | **PASS** (`5501` Gamma) | Multiple clauses preserved in cache |
+| - $T = 4,096$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $1/3$ ($33.3\%$) | **$3/3$ ($100\%$)** | Diffusion preserves clause context |
+| - $T = 8,192$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $1/3$ ($33.3\%$) | **$3/3$ ($100\%$)** | Zero tie-breaking truncation |
+| - $T = 16,384$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0.0\%$) | $0/3$ ($0.0\%$) | **$3/3$ ($100\%$)** | Rescues deep positions (vs EXP-21 fail) |
+| - $T = 32,768$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0.0\%$) | $0/3$ ($0.0\%$) | **$3/3$ ($100\%$)** | Perfect retrieval at 32k context |
+| **Retroactive Framing ($32\text{k}$, Depth $10\%$)** | **PASS** | FAIL (`789`) | FAIL (`742`) | **PASS** (`74921`) | Backward diffusion recovers payload |
+| **Unseen Arbitrary UUID Needle ($8\text{k}$)** | **PASS** | FAIL | FAIL | **PASS** (`X9F-482-Q7B`) | Zero keyword leakage |
+| **Unseen Arbitrary UUID Needle ($16\text{k}$)** | **PASS** | FAIL | FAIL | **PASS** (`X9F-482-Q7B`) | Zero keyword leakage |
+| **Multi-Needle Synthesis ($16\text{k}$, 3 Codes)** | **PASS** ($3/3$) | FAIL ($0/3$) | FAIL ($0/3$) | **PASS** ($3/3$ Recalled: `9182`, `3746`, `5501`) | Multiple clauses preserved in cache |
 | **Expanded MMLU Reasoning ($25$ Questions)** | $96.0\%$ ($24/25$) | $96.0\%$ ($24/25$) | $96.0\%$ ($24/25$) | **$96.0\%$ ($24/25$)** | **$0.0\%$ degradation (Zero cognitive loss)** |
 | **Perplexity at $T = 4,096$** | $1.22$ | $1.22$ | $1.22$ | **$1.22$** | Stable language modeling |
 | **Perplexity at $T = 8,192$** | $1.10$ | $1.10$ | $1.10$ | **$1.10$** | Stable language modeling |
@@ -1452,9 +1452,11 @@ In EXP-21, CDCA-V2 achieved $72.2\%$ NIAH retrieval but failed on long haystacks
 2. **True Generalization to Arbitrary Alphanumeric Payloads:**
    CDCA-V3 perfectly retrieves the unseen random alphanumeric UUID identifier (`"X9F-482-Q7B"`) at both $8\text{k}$ and $16\text{k}$ contexts, confirming that the attention gate operates on genuine semantic alignment rather than memorized substrings.
 3. **Multi-Needle Capacity in Bounded Budget:**
-   When 3 distinct needles (Alpha `9182`, Beta `3746`, Gamma `5501`) are inserted at disparate depths ($15\%$, $50\%$, $85\%$), the continuous diffusion profile preserves all three clauses within the $1,024$-landmark budget, enabling successful multi-needle synthesis.
+   When 3 distinct needles (Alpha `9182`, Beta `3746`, Gamma `5501`) are inserted at disparate depths ($15\%$, $50\%$, $85\%$), the continuous diffusion profile preserves all three clauses within the $1,024$-landmark budget, enabling successful multi-needle synthesis (**$3/3$, $100.0\%$ recall**), whereas both true causal $\text{H}_2\text{O}$ and StreamingLLM fail completely ($0/3$, $0.0\%$).
 4. **Massive Serving Concurrency Scaling:**
    At $32\text{k}$ context, CDCA-V3 clamps KV-cache DRAM from $384.0\text{ MiB} \to 24.0\text{ MiB}$ ($16.0\times$ reduction). At Qwen3.5's native $262,144$ token window, KV-cache drops from $3.00\text{ GiB} \to 24.0\text{ MiB}$ ($128.0\times$ reduction), allowing a single 24GB GPU to serve over $700$ concurrent $262\text{k}$ streams.
+5. **Causal-Prefix Eviction Vulnerability (Why True $\text{H}_2\text{O}$ Fails):**
+   In true causal $\text{H}_2\text{O}$ eviction, tokens are scored causally during prefill before the prompt's question arrives. Because prefix queries attend to initial attention sinks and local context rather than unqueried payload needles, $\text{H}_2\text{O}$ prematurely evicts early and middle needles, collapsing to $44.4\%$ overall recall ($0/3$ at 16k and 32k) and $0/3$ on multi-needle retrieval. In contrast, CDCA-V3 combines top-down observation-window query alignment with stationary de-rotated keys and bottom-up geometric surprise, preserving all relevant entity clauses.
 
 
 

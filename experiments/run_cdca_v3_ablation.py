@@ -148,6 +148,64 @@ def run_single_trial(
     }
 
 
+def run_multi_needle_3queries(model: nn.Module, tokenizer: AutoTokenizer, device: str) -> dict:
+    n1 = "\n[CRITICAL NOTE: Alpha authorization code is 9182.]\n"
+    n2 = "\n[CRITICAL NOTE: Beta authorization code is 3746.]\n"
+    n3 = "\n[CRITICAL NOTE: Gamma authorization code is 5501.]\n"
+
+    t1 = tokenizer.encode(n1, add_special_tokens=False)
+    t2 = tokenizer.encode(n2, add_special_tokens=False)
+    t3 = tokenizer.encode(n3, add_special_tokens=False)
+    thay = tokenizer.encode(HAYSTACK_BASE, add_special_tokens=False)
+
+    queries = [
+        {"name": "alpha", "query": "\nQuestion: What is the Alpha authorization code? Answer: The Alpha authorization code is", "expected": "9182", "depth": 0.15},
+        {"name": "beta", "query": "\nQuestion: What is the Beta authorization code? Answer: The Beta authorization code is", "expected": "3746", "depth": 0.50},
+        {"name": "gamma", "query": "\nQuestion: What is the Gamma authorization code? Answer: The Gamma authorization code is", "expected": "5501", "depth": 0.85},
+    ]
+
+    total_query_len = max(len(tokenizer.encode(q["query"], add_special_tokens=False)) for q in queries)
+    total_hay_len = 16384 - len(t1) - len(t2) - len(t3) - total_query_len
+    repeats = int(math.ceil(total_hay_len / len(thay)))
+    hay = (thay * repeats)[:total_hay_len]
+
+    p1 = int(len(hay) * 0.15)
+    p2 = int(len(hay) * 0.50)
+    p3 = int(len(hay) * 0.85)
+
+    base_doc = hay[:p1] + t1 + hay[p1:p2] + t2 + hay[p2:p3] + t3 + hay[p3:]
+
+    results = {}
+    needles_recalled = 0
+
+    for q_info in queries:
+        tq = tokenizer.encode(q_info["query"], add_special_tokens=False)
+        input_ids = torch.tensor([base_doc + tq], device=device)
+        reset_cdca_states(model)
+        gc.collect()
+        if device == "cuda" or (isinstance(device, torch.device) and device.type == "cuda"):
+            torch.cuda.empty_cache()
+
+        with torch.no_grad():
+            out_ids = model.generate(input_ids, max_new_tokens=16, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        gen_text = tokenizer.decode(out_ids[0][input_ids.shape[1]:], skip_special_tokens=True)
+        success = (q_info["expected"] in gen_text)
+        if success:
+            needles_recalled += 1
+        results[q_info["name"]] = {
+            "expected": q_info["expected"],
+            "success": success,
+            "gen_text": gen_text,
+        }
+
+    results["needles_recalled"] = needles_recalled
+    results["total_needles"] = 3
+    results["all_recalled"] = (needles_recalled == 3)
+    results["context_length"] = 16384
+    results["success"] = (needles_recalled == 3)
+    return results
+
+
 def evaluate_expanded_mmlu(model: nn.Module, tokenizer: AutoTokenizer, device: str) -> float:
     model.eval()
     correct = 0
@@ -304,68 +362,50 @@ def run_cdca_v3_benchmark(device: str = "cuda") -> dict:
     metrics["niah_grid_18_trials"]["h2o"]["success_count"] = h2o_successes
     metrics["niah_grid_18_trials"]["h2o"]["success_rate_pct"] = round(h2o_successes / 18.0 * 100.0, 1)
 
-    # 4. Stress Tests on CDCA-V3
-    print("\n[4/5] Running Out-of-Distribution & Multi-Needle Stress Tests on CDCA-V3...")
-    set_model_cdca_mode(model, "cdca_v3")
+    # 4. Stress Tests across all modes (CDCA-V3, H2O, StreamingLLM)
+    print("\n[4/5] Running Out-of-Distribution & Multi-Needle Stress Tests across modes...")
+    stress_modes = ["cdca_v3", "h2o", "streaming_llm"]
 
-    # A. Retroactive Framing at T=32,768 (Depth 10%)
-    res_retro = run_single_trial(
-        model, tokenizer, device, target_len=32768, depth=0.10,
-        needle_str=RETROACTIVE_NEEDLE, query_str=RETRIEVAL_QUERY, expected_answer="74921",
-    )
-    metrics["stress_tests"]["retroactive_framing_32k"] = res_retro
-    print(f"  [Retroactive 32k] Success: {res_retro['success']} | Gen: '{res_retro['gen_text']}'")
+    for m in stress_modes:
+        print(f"\n  --> Evaluating Stress Tests on Mode: {m}...")
+        set_model_cdca_mode(model, m)
 
-    # B. Arbitrary UUID Needle ("X9F-482-Q7B") at T=8192 and T=16384
-    res_uuid_8k = run_single_trial(
-        model, tokenizer, device, target_len=8192, depth=0.50,
-        needle_str=UUID_NEEDLE, query_str=UUID_QUERY, expected_answer="X9F-482-Q7B",
-    )
-    metrics["stress_tests"]["uuid_needle_8k"] = res_uuid_8k
-    print(f"  [UUID Needle 8k] Success: {res_uuid_8k['success']} | Gen: '{res_uuid_8k['gen_text']}'")
+        # A. Retroactive Framing at T=32,768 (Depth 10%)
+        res_retro = run_single_trial(
+            model, tokenizer, device, target_len=32768, depth=0.10,
+            needle_str=RETROACTIVE_NEEDLE, query_str=RETRIEVAL_QUERY, expected_answer="74921",
+        )
+        print(f"    [{m}] Retroactive 32k: {res_retro['success']} | Gen: '{res_retro['gen_text'][:25]}'")
 
-    res_uuid_16k = run_single_trial(
-        model, tokenizer, device, target_len=16384, depth=0.50,
-        needle_str=UUID_NEEDLE, query_str=UUID_QUERY, expected_answer="X9F-482-Q7B",
-    )
-    metrics["stress_tests"]["uuid_needle_16k"] = res_uuid_16k
-    print(f"  [UUID Needle 16k] Success: {res_uuid_16k['success']} | Gen: '{res_uuid_16k['gen_text']}'")
+        # B. Arbitrary UUID Needle ("X9F-482-Q7B") at T=8192 and T=16384
+        res_uuid_8k = run_single_trial(
+            model, tokenizer, device, target_len=8192, depth=0.50,
+            needle_str=UUID_NEEDLE, query_str=UUID_QUERY, expected_answer="X9F-482-Q7B",
+        )
+        print(f"    [{m}] UUID Needle 8k: {res_uuid_8k['success']} | Gen: '{res_uuid_8k['gen_text'][:25]}'")
 
-    # C. Multi-Needle Synthesis Test at T=16384 (3 needles at 15%, 50%, 85%)
-    # Construct sequence with 3 distinct needles
-    n1 = "\n[CRITICAL NOTE: Alpha authorization code is 9182.]\n"
-    n2 = "\n[CRITICAL NOTE: Beta authorization code is 3746.]\n"
-    n3 = "\n[CRITICAL NOTE: Gamma authorization code is 5501.]\n"
-    query_multi = "\nQuestion: What are the codes for Alpha, Beta, and Gamma? Answer: Alpha is 9182, Beta is 3746, Gamma is"
+        res_uuid_16k = run_single_trial(
+            model, tokenizer, device, target_len=16384, depth=0.50,
+            needle_str=UUID_NEEDLE, query_str=UUID_QUERY, expected_answer="X9F-482-Q7B",
+        )
+        print(f"    [{m}] UUID Needle 16k: {res_uuid_16k['success']} | Gen: '{res_uuid_16k['gen_text'][:25]}'")
 
-    t1 = tokenizer.encode(n1, add_special_tokens=False)
-    t2 = tokenizer.encode(n2, add_special_tokens=False)
-    t3 = tokenizer.encode(n3, add_special_tokens=False)
-    tq = tokenizer.encode(query_multi, add_special_tokens=False)
-    thay = tokenizer.encode(HAYSTACK_BASE, add_special_tokens=False)
+        # C. Multi-Needle Synthesis Test at T=16384 (3 needles at 15%, 50%, 85%)
+        res_multi = run_multi_needle_3queries(model, tokenizer, device)
+        print(f"    [{m}] Multi-Needle 16k: {res_multi['needles_recalled']}/3 Recalled (Alpha={res_multi['alpha']['success']}, Beta={res_multi['beta']['success']}, Gamma={res_multi['gamma']['success']})")
 
-    total_hay_len = 16384 - len(t1) - len(t2) - len(t3) - len(tq)
-    repeats = int(math.ceil(total_hay_len / len(thay)))
-    hay = (thay * repeats)[:total_hay_len]
+        metrics["stress_tests"][m] = {
+            "retroactive_framing_32k": res_retro,
+            "uuid_needle_8k": res_uuid_8k,
+            "uuid_needle_16k": res_uuid_16k,
+            "multi_needle_16k": res_multi,
+        }
 
-    p1 = int(len(hay) * 0.15)
-    p2 = int(len(hay) * 0.50)
-    p3 = int(len(hay) * 0.85)
-
-    seq_multi = hay[:p1] + t1 + hay[p1:p2] + t2 + hay[p2:p3] + t3 + hay[p3:] + tq
-    inp_multi = torch.tensor([seq_multi], device=device)
-
-    reset_cdca_states(model)
-    with torch.no_grad():
-        out_multi = model.generate(inp_multi, max_new_tokens=16, do_sample=False, pad_token_id=tokenizer.eos_token_id)
-    gen_multi = tokenizer.decode(out_multi[0][inp_multi.shape[1]:], skip_special_tokens=True)
-    success_multi = ("5501" in gen_multi)
-    metrics["stress_tests"]["multi_needle_16k"] = {
-        "context_length": inp_multi.shape[1],
-        "success": success_multi,
-        "gen_text": gen_multi,
-    }
-    print(f"  [Multi-Needle 16k] Success: {success_multi} | Gen: '{gen_multi}'")
+    # Set top-level stress_tests keys for backward compatibility
+    metrics["stress_tests"]["retroactive_framing_32k"] = metrics["stress_tests"]["cdca_v3"]["retroactive_framing_32k"]
+    metrics["stress_tests"]["uuid_needle_8k"] = metrics["stress_tests"]["cdca_v3"]["uuid_needle_8k"]
+    metrics["stress_tests"]["uuid_needle_16k"] = metrics["stress_tests"]["cdca_v3"]["uuid_needle_16k"]
+    metrics["stress_tests"]["multi_needle_16k"] = metrics["stress_tests"]["cdca_v3"]["multi_needle_16k"]
 
     # 5. Expanded MMLU (25 questions) and Perplexity
     print("\n[5/5] Evaluating Expanded MMLU (25 Questions) & Perplexity...")
