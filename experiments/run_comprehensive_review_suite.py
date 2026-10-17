@@ -15,6 +15,7 @@ import re
 import math
 import time
 import json
+import random
 from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 import torch
@@ -81,21 +82,41 @@ def build_synthetic_context(
     needle_str: str,
     query_str: str,
     depth: float,
+    is_instruct: bool = False,
 ) -> Tuple[List[int], int]:
     """Builds a haystack document of target_len with a needle inserted at depth."""
-    needle_tokens = tokenizer.encode(needle_str, add_special_tokens=False)
-    query_tokens = tokenizer.encode(query_str, add_special_tokens=False)
     haystack_tokens = tokenizer.encode(HAYSTACK_BASE, add_special_tokens=False)
+    needle_tokens = tokenizer.encode(needle_str, add_special_tokens=False)
 
-    num_haystack_needed = target_len - len(needle_tokens) - len(query_tokens)
-    if num_haystack_needed <= 0:
-        num_haystack_needed = 100
-    repeats = int(math.ceil(num_haystack_needed / len(haystack_tokens)))
-    full_haystack = (haystack_tokens * repeats)[:num_haystack_needed]
+    if is_instruct and hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
+        dummy = [{"role": "user", "content": query_str}]
+        dummy_str = tokenizer.apply_chat_template(dummy, tokenize=False, add_generation_prompt=True)
+        overhead = len(tokenizer.encode(dummy_str, add_special_tokens=False))
+        avail = target_len - overhead - len(needle_tokens)
+        num_haystack = max(100, avail)
+        repeats = int(math.ceil(num_haystack / len(haystack_tokens)))
+        full_haystack = (haystack_tokens * repeats)[:num_haystack]
+        insert_pos = int(len(full_haystack) * depth)
 
-    insert_pos = int(len(full_haystack) * depth)
-    final_tokens = full_haystack[:insert_pos] + needle_tokens + full_haystack[insert_pos:] + query_tokens
-    return final_tokens, insert_pos
+        doc_tokens = full_haystack[:insert_pos] + needle_tokens + full_haystack[insert_pos:]
+        doc_str = tokenizer.decode(doc_tokens, skip_special_tokens=True)
+        messages = [
+            {"role": "user", "content": f"{doc_str}\n\n{query_str.strip()}"}
+        ]
+        final_str = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        final_tokens = tokenizer.encode(final_str, add_special_tokens=False)
+        return final_tokens[:target_len], insert_pos
+    else:
+        query_tokens = tokenizer.encode(query_str, add_special_tokens=False)
+        num_haystack_needed = target_len - len(needle_tokens) - len(query_tokens)
+        if num_haystack_needed <= 0:
+            num_haystack_needed = 100
+        repeats = int(math.ceil(num_haystack_needed / len(haystack_tokens)))
+        full_haystack = (haystack_tokens * repeats)[:num_haystack_needed]
+
+        insert_pos = int(len(full_haystack) * depth)
+        final_tokens = full_haystack[:insert_pos] + needle_tokens + full_haystack[insert_pos:] + query_tokens
+        return final_tokens[:target_len], insert_pos
 
 
 def run_generation(
@@ -118,15 +139,16 @@ def run_generation(
 
 
 # =====================================================================
-# SUB-EXPERIMENT 28A: Cross-Company Model Family Workers (n=10)
+# SUB-EXPERIMENT 28A: Cross-Company Model Family Workers (n=30)
 # =====================================================================
 def run_single_model_28a(model_cfg: dict, device: str = "cuda") -> Dict[str, Any]:
-    """Evaluates one model family across 6 compression paradigms (n=10 trials)."""
+    """Evaluates one model family across 6 compression paradigms (n=30 randomized trials)."""
     m_name = model_cfg["name"]
     hf_id = model_cfg["hf_id"]
     layer_indices = model_cfg["layers"]
+    is_instruct = "instruct" in m_name.lower() or "instruct" in hf_id.lower()
 
-    print(f"\n>>> Benchmarking Model Family: {m_name} ({hf_id}) <<<")
+    print(f"\n>>> Benchmarking Model Family: {m_name} ({hf_id}, Instruct={is_instruct}) <<<")
     try:
         model, tokenizer = load_model_and_tokenizer(hf_id, device=device)
     except Exception as e:
@@ -149,15 +171,33 @@ def run_single_model_28a(model_cfg: dict, device: str = "cuda") -> Dict[str, Any
     window_size = 512
     max_salient = 128
 
-    # 5 S-NIAH, 3 UUID, 2 Retroactive = 10 trials
-    depths_sniah = [0.10, 0.30, 0.50, 0.70, 0.90]
-    depths_uuid = [0.20, 0.50, 0.80]
-    depths_retro = [0.15, 0.25]
+    # High-Power n=30 trials: 12 S-NIAH, 10 UUID, 8 Retroactive
+    rng = random.Random(42)
+    sniah_trials = []
+    for d in [0.10, 0.18, 0.26, 0.34, 0.42, 0.50, 0.58, 0.66, 0.74, 0.82, 0.88, 0.92]:
+        code = f"{rng.randint(10000, 99999)}"
+        n_str = f"\n[CRITICAL NOTE: The secret operational access code for Project Antigravity is {code}.]\n"
+        q_str = f"\nQuestion: What is the secret operational access code for Project Antigravity? Answer with only the 5-digit code:"
+        sniah_trials.append((d, n_str, q_str, code))
+
+    uuid_trials = []
+    for d in [0.12, 0.20, 0.28, 0.36, 0.45, 0.54, 0.63, 0.72, 0.80, 0.86]:
+        code = f"{rng.choice(['X9F','A3K','Q7B','M4L'])}-{rng.randint(100, 999)}-{rng.choice(['CZ8','WP2','RN5'])}"
+        n_str = f"\n[The target alpha-numeric registration identifier assigned to the primary node is strictly recorded in the vault as {code} for verification.]\n"
+        q_str = f"\nQuestion: What is the target alpha-numeric registration identifier assigned to the primary node? Answer with only the identifier:"
+        uuid_trials.append((d, n_str, q_str, code))
+
+    retro_trials = []
+    for d in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85]:
+        code = f"{rng.randint(10000, 99999)}"
+        n_str = f"\n[The secret emergency override authorization code is {code}. Make sure you remember this confirmation note.]\n"
+        q_str = f"\nQuestion: What is the secret emergency override authorization code? Answer with only the code:"
+        retro_trials.append((d, n_str, q_str, code))
 
     results = {}
 
     for method in methods:
-        print(f"  --> Testing Method: {method.upper()} on {m_name}...")
+        print(f"  --> Testing Method: {method.upper()} on {m_name} (n=30)...")
         if method == "original_softmax":
             apply_halo_adapter_generic(
                 model, window_size=target_len + 100, max_salient=0, mode="original_softmax",
@@ -193,31 +233,25 @@ def run_single_model_28a(model_cfg: dict, device: str = "cuda") -> Dict[str, Any
             )
 
         sniah_scores = []
-        for d in depths_sniah:
-            n_str = "\n[CRITICAL NOTE: The secret operational access code for Project Antigravity is 74921.]\n"
-            q_str = "\nQuestion: What is the secret operational access code for Project Antigravity? Answer: The access code is"
-            toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d)
+        for d, n_str, q_str, code in sniah_trials:
+            toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d, is_instruct=is_instruct)
             inp = torch.tensor([toks], device=device)
             gen = run_generation(model, tokenizer, device, inp, max_new_tokens=10)
-            sniah_scores.append(100.0 if "74921" in gen else 0.0)
+            sniah_scores.append(100.0 if code in gen else 0.0)
 
         uuid_scores = []
-        for d in depths_uuid:
-            n_str = "\n[The target alpha-numeric registration identifier assigned to the primary node is strictly recorded in the vault as X9F-482-Q7B for verification.]\n"
-            q_str = "\nQuestion: What is the target alpha-numeric registration identifier assigned to the primary node? Answer: The registration identifier is"
-            toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d)
+        for d, n_str, q_str, code in uuid_trials:
+            toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d, is_instruct=is_instruct)
             inp = torch.tensor([toks], device=device)
             gen = run_generation(model, tokenizer, device, inp, max_new_tokens=16)
-            uuid_scores.append(100.0 if "X9F-482-Q7B" in gen else 0.0)
+            uuid_scores.append(100.0 if code in gen else 0.0)
 
         retro_scores = []
-        for d in depths_retro:
-            n_str = "\n[The secret emergency override authorization code is 74921. Make sure you remember this confirmation note.]\n"
-            q_str = "\nQuestion: What is the secret emergency override authorization code? Answer: The secret emergency override authorization code is"
-            toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d)
+        for d, n_str, q_str, code in retro_trials:
+            toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d, is_instruct=is_instruct)
             inp = torch.tensor([toks], device=device)
             gen = run_generation(model, tokenizer, device, inp, max_new_tokens=10)
-            retro_scores.append(100.0 if "74921" in gen else 0.0)
+            retro_scores.append(100.0 if code in gen else 0.0)
 
         total_scores = sniah_scores + uuid_scores + retro_scores
         results[method] = {
@@ -226,7 +260,7 @@ def run_single_model_28a(model_cfg: dict, device: str = "cuda") -> Dict[str, Any
             "uuid": compute_stats(uuid_scores),
             "retroactive": compute_stats(retro_scores),
         }
-        print(f"    --> {method.upper()}: Composite Recall = {results[method]['composite']['mean']}% "
+        print(f"    --> {method.upper()}: Composite Recall (n=30) = {results[method]['composite']['mean']}% "
               f"(±{results[method]['composite']['ci95']}%)")
 
     del model

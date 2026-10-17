@@ -249,7 +249,11 @@ class CognitiveDualControlAttention(nn.Module):
                 k_raw_hist = self.translation.translate_k(raw_key_states[:, :, :hist_len, :])
                 k_raw_exp = k_raw_hist.repeat_interleave(self.num_key_value_groups, dim=1)
                 derot_scores = torch.einsum("bhqd,bhtd->bhqt", q_raw_obs.float(), k_raw_exp.float()) / math.sqrt(self.head_dim)
-                derot_attn = F.softmax(derot_scores, dim=-1).sum(dim=(0, 1, 2))
+                # Head-Peaked pooling: combine mean (consensus) and max (specialist retrieval head)
+                derot_heads = F.softmax(derot_scores, dim=-1).sum(dim=2)  # [B, H, hist_len]
+                derot_mean = derot_heads.mean(dim=1).sum(dim=0)
+                derot_max = derot_heads.max(dim=1).values.sum(dim=0)
+                derot_attn = 0.5 * (derot_mean / (derot_mean.max() + 1e-6)) + 0.5 * (derot_max / (derot_max.max() + 1e-6))
             else:
                 derot_attn = None
 
@@ -257,20 +261,31 @@ class CognitiveDualControlAttention(nn.Module):
             q_rope_obs = query_states[:, :, -W_sample:, :]
             k_rope_hist = key_states[:, :, :hist_len, :].repeat_interleave(self.num_key_value_groups, dim=1)
             rope_scores = torch.einsum("bhqd,bhtd->bhqt", q_rope_obs.float(), k_rope_hist.float()) / math.sqrt(self.head_dim)
-            rope_attn = F.softmax(rope_scores, dim=-1).sum(dim=(0, 1, 2))
+            rope_heads = F.softmax(rope_scores, dim=-1).sum(dim=2)  # [B, H, hist_len]
+            rope_mean = rope_heads.mean(dim=1).sum(dim=0)
+            rope_max = rope_heads.max(dim=1).values.sum(dim=0)
+            rope_attn = 0.5 * (rope_mean / (rope_mean.max() + 1e-6)) + 0.5 * (rope_max / (rope_max.max() + 1e-6))
 
             # Top-Down normalized alignment
             if self.use_derotation and derot_attn is not None:
-                s_td = 0.5 * (derot_attn / (derot_attn.max() + 1e-6)) + 0.5 * (rope_attn / (rope_attn.max() + 1e-6))
+                s_td = 0.5 * derot_attn + 0.5 * rope_attn
             else:
-                s_td = rope_attn / (rope_attn.max() + 1e-6)
+                s_td = rope_attn
 
-            # (c) Bottom-Up Geometric Surprise (L2 Norm Z-Score + Angular Novelty)
+            # (c) Bottom-Up Geometric Surprise (Whitened Relative Norm Anomaly + Angular Novelty)
             if self.use_surprise:
                 k_source = k_raw_hist if self.use_derotation else raw_key_states[:, :, :hist_len, :]
-                k_norms = torch.norm(k_source.float(), p=2, dim=-1).mean(dim=(0, 1))
-                std_norm = k_norms.std()
-                z_norm = F.relu((k_norms - k_norms.mean()) / (std_norm + 1e-6)) if (hist_len > 1 and std_norm > 1e-6) else torch.zeros_like(k_norms)
+                raw_norms = torch.norm(k_source.float(), p=2, dim=-1).mean(dim=(0, 1))
+
+                # Adaptive rolling window normalization prevents static outliers in unnormalized models
+                if hist_len > 31:
+                    norm_smooth = F.avg_pool1d(raw_norms.view(1, 1, -1), kernel_size=31, stride=1, padding=15).squeeze()
+                    rel_norm = (raw_norms - norm_smooth) / (norm_smooth + 1e-6)
+                    std_norm = rel_norm.std()
+                    z_norm = F.relu((rel_norm - rel_norm.mean()) / (std_norm + 1e-6)) if std_norm > 1e-6 else torch.zeros_like(rel_norm)
+                else:
+                    std_norm = raw_norms.std()
+                    z_norm = F.relu((raw_norms - raw_norms.mean()) / (std_norm + 1e-6)) if (hist_len > 1 and std_norm > 1e-6) else torch.zeros_like(raw_norms)
 
                 k_unit = F.normalize(k_source.float(), p=2, dim=-1)
                 if hist_len > 1:
@@ -288,11 +303,14 @@ class CognitiveDualControlAttention(nn.Module):
                 s_bu = torch.zeros_like(s_td)
                 s_total = s_td
 
-            # (d) 1D Diffusion (radius K=diffusion_radius, kernel_type="exponential" or "uniform_box")
+            # (d) Budget-Adaptive 1D Diffusion (radius K=diffusion_radius, adaptive for small budgets)
             K = self.diffusion_radius
             if K == 0:
                 diffused = s_total
             else:
+                if self.diffusion_radius == 16 and k_select < 256:
+                    K = min(16, max(4, k_select // 16))
+
                 if self.kernel_type == "uniform_box":
                     kernel = torch.ones(1, 1, 2 * K + 1, device=device, dtype=torch.float32) / float(2 * K + 1)
                 else:
