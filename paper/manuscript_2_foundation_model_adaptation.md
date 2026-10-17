@@ -9,7 +9,7 @@
 
 ## Abstract
 
-Serving large language models across long context horizons is critically bottlenecked by the Key-Value (KV) cache, whose linear footprint in sequence length $T$ exhausts accelerator high-bandwidth memory (HBM) and restricts serving throughput. Existing post-training compression strategies divide into two competing paradigms: compiling historical tokens into fixed-size recurrent matrix states, or selectively evicting tokens from the KV cache. In this work, we demonstrate the fundamental geometric failure modes of both approaches and introduce a principled mechanism that resolves them without fine-tuning. First, we prove the **Rank-$r$ Spectral Dilution Horizon**: any fixed-size recurrent state acts as a low-pass spectral filter whose energy allocation to an individual token decays as $\mathcal{O}(1/T)$, causing exact long-range recall to collapse to $0.0\%$ beyond the local window despite capturing over $95\%$ of attention output variance ($R^2 = 0.9505$) and preserving $100\%$ general reasoning accuracy. Second, we uncover the **Query-Answer Asymmetry Principle**: existing selective token eviction schemes fail on complex entities because causal prefix scoring is blind to terminal prompt queries, while greedy top-$k$ selection retains query-matching cue words while severing the adjacent multi-token payload. In response, we introduce **HALO** (**H**ybrid **A**ttention with **L**andmark **O**bservation-diffusion), which pairs an exact local sliding window with phase-rectified observation alignment, bottom-up geometric surprise, and an **Exponential Salience Halo** ($\kappa(\delta) = \exp(-0.10|\delta|), K = 16$) that diffuses importance contiguously across complete factual clauses, alongside a unified **HALO + BLUR** synthesis combining exact landmarks with compressed residual background statistics. Evaluated across three distinct foundation model families from independent organizations—Alibaba (`Qwen3.5-0.8B`), Meta (`Llama-3.2-1B`), and HuggingFace (`SmolLM2-1.7B`)—and across the canonical RULER 4-axis benchmark suite, HALO achieves $100.0\%$ single-needle, $70.0\%$ adversarial distractor, and $100.0\%$ multi-hop variable tracking recall while compressing KV-cache memory by $16\times$ to $25.6\times$ with sub-60ms selection overhead.
+Serving large language models across long context horizons is critically bottlenecked by the Key-Value (KV) cache, whose linear footprint in sequence length $T$ exhausts accelerator high-bandwidth memory (HBM) and restricts serving throughput. Existing post-training compression strategies divide into two competing paradigms: compiling historical tokens into fixed-size recurrent matrix states, or selectively evicting tokens from the KV cache. In this work, we demonstrate the fundamental geometric failure modes of both approaches and introduce a principled mechanism that resolves them without fine-tuning. First, we prove the **Rank-$r$ Spectral Dilution Horizon**: any fixed-size recurrent state acts as a low-pass spectral filter whose energy allocation to an individual token decays as $\mathcal{O}(1/T)$, causing exact long-range recall to collapse to $0.0\%$ beyond the local window despite capturing over $95\%$ of attention output variance ($R^2 = 0.9505$) and preserving $100\%$ general reasoning accuracy. Second, we uncover the **Query-Answer Asymmetry Principle**: existing selective token eviction schemes fail on complex entities because causal prefix scoring is blind to terminal prompt queries, while greedy top-$k$ selection retains query-matching cue words while severing the adjacent multi-token payload. In response, we introduce **HALO** (**H**ybrid **A**ttention with **L**andmark **O**bservation-diffusion), which pairs an exact local sliding window with phase-rectified observation alignment, bottom-up geometric surprise, and an **Exponential Salience Halo** ($\kappa(\delta) = \exp(-0.10|\delta|), K = 16$) that diffuses importance contiguously across complete factual clauses, alongside a unified **HALO + BLUR** synthesis combining exact landmarks with compressed residual background statistics. Evaluated across three distinct foundation model families from independent organizations—Alibaba (`Qwen3.5-0.8B`), Meta (`Llama-3.2-1B`), and HuggingFace (`SmolLM2-1.7B`)—and across the canonical RULER 4-axis benchmark suite, HALO achieves $100.0\%$ single-needle, $90.0\%$ adversarial distractor, and $100.0\%$ multi-hop variable tracking recall while compressing KV-cache memory by $16\times$ to $25.6\times$ with sub-60ms selection overhead.
 
 ---
 
@@ -83,14 +83,14 @@ To overcome causal prefix blindness, *SnapKV* (Li et al., 2024) and *Quest* (Tan
 - **Our Solution (**HALO** & **HALO + BLUR**):** We introduce **HALO** (**H**ybrid **A**ttention with **L**andmark **O**bservation-diffusion), which combines an exact local sliding window with **PRISM** phase-rectified alignment, bottom-up geometric surprise, and a wide **Exponential Salience Halo** ($\kappa(\delta) = \exp(-0.10|\delta|), K = 16$) that diffuses importance contiguously across entire clauses. Furthermore, we unify HALO with BLUR into **`HALO + BLUR`**, allocating $N - 16$ slots to exact diffused landmarks and $16$ slots to ridge-regularized block summary vectors from the evicted historical residual.
 
 ### 1.3 Roadmap of Findings
-- **Act I (Section 2 — The Low-Pass Limit of Matrix States):** We formalize **Representational Shock**, prove why **PRISM Phase Rectification** jumps closed-form operator regression fidelity from $R^2 = 0.4014 \to 0.9893$, and prove the **Rank-$r$ Spectral Dilution Horizon** ($\mathcal{O}(1/T)$), explaining why **Hybrid-BLUR** achieves $932\times$ compression and $100\%$ MMLU reasoning yet scores $0\%$ on long-range passkey recall.
-- **Act II (Section 3 — Query-Answer Asymmetry & Phase Transitions):** We formalize the **Query-Answer Asymmetry Principle**, prove the syntactic separation $\Delta_{\text{QA}}$ and value-span length $L_{\text{val}}$ phase transition (`fig78`), demonstrate decisive leave-one-out component isolation and multi-turn durability (`fig80`), and establish hyperparameter plateau stability (`fig81`).
-- **Act III (Section 4 — Canonical Literature Benchmarks):** We evaluate the 4-axis RULER suite (S-NIAH, adversarial distractor MK-NIAH, 2-Hop Variable Tracking, Common Word Aggregation) alongside LongBench multi-sentence summarization (`fig79`).
-- **Act IV (Section 5 — Cross-Company Generalization & Hardware Profiling):** We validate across three independent foundation model families (Alibaba `Qwen3.5-0.8B`, Meta `Llama-3.2-1B`, HuggingFace `SmolLM2-1.7B`; `fig77`), and benchmark wall-clock prefill latency, selection overhead, decode throughput, and VRAM scaling up to 32k (`fig82`).
+- **Section 2 — Theoretical Foundations: The Low-Pass Limit of Matrix States and Representational Shock:** We formalize **Representational Shock**, prove why **PRISM Phase Rectification** jumps closed-form operator regression fidelity from $R^2 = 0.4014 \to 0.9893$, and prove the **Rank-$r$ Spectral Dilution Horizon** ($\mathcal{O}(1/T)$), explaining why **Hybrid-BLUR** achieves $932\times$ compression and $100\%$ MMLU reasoning yet scores $0\%$ on long-range passkey recall.
+- **Section 3 — Selective Landmark Eviction and the HALO Framework:** We formalize the **Query-Answer Asymmetry Principle**, analyze the syntactic separation $\Delta_{\text{QA}}$ and value-span length $L_{\text{val}}$ phase transition (`fig78`), demonstrate decisive leave-one-out component isolation and multi-turn durability (`fig80`), and establish hyperparameter plateau stability (`fig81`).
+- **Section 4 — Canonical Literature Benchmarks:** We evaluate the 4-axis RULER suite (S-NIAH, adversarial distractor MK-NIAH, 2-Hop Variable Tracking, Common Word Aggregation) alongside LongBench multi-sentence summarization (`fig79`).
+- **Section 5 — Multi-Organization Foundation Model Diversity & Hardware Profiling:** We validate across three independent foundation model families (Alibaba `Qwen3.5-0.8B`, Meta `Llama-3.2-1B`, HuggingFace `SmolLM2-1.7B`; `fig77`), and benchmark wall-clock prefill latency, selection overhead, decode throughput, and VRAM scaling up to 32k (`fig82`).
 
 ---
 
-## 2. Act I: The Low-Pass Limit of Matrix States (The BLUR Regime) & Unified HALO + BLUR
+## 2. Theoretical Foundations: The Low-Pass Limit of Fixed-Size Matrix States and Representational Shock
 
 Before designing a selective token cache, we first ask: *How far can we push a pure $\mathcal{O}(1)$ recurrent matrix state when replacing attention in a frozen pretrained Transformer?*
 
@@ -106,9 +106,9 @@ Hybrid Window + State:  Layer l (W+State) ──► Exact Local Fit ──► La
 
 When the entire attention span—including immediate neighboring tokens—is replaced by a low-rank approximation $\hat{\boldsymbol{Y}}_l$, the frozen downstream network suffers **Representational Shock**:
 
-> **Theorem 1 (Representational Shock):** *In a frozen deep Transformer with downstream layer weights $\{\boldsymbol{W}_j\}_{j=l+1}^L$, replacing an intermediate attention layer $l$ with an operator $\hat{\boldsymbol{Y}}_l$ whose local output perturbation exceeds $\epsilon_{\text{crit}}$ induces downstream activation drift that compounds multiplicatively with depth:*
-> $$\|\Delta \boldsymbol{x}_L\| \ge \mathcal{O}\left(\prod_{j=l+1}^L \|\boldsymbol{W}_j\|\right) \|\hat{\boldsymbol{Y}}_l - \boldsymbol{Y}_l^{\text{Softmax}}\|$$
-> *Because frozen LayerNorm scales and SwiGLU MLP gates are calibrated to the sharp, high-kurtosis distribution of local Softmax attention, smoothing local token interactions scrambles syntactic generation.*
+> **Proposition 1 (Representational Shock & Downstream Perturbation Propagation):** *In a frozen deep Transformer with downstream layer weights $\{\boldsymbol{W}_j\}_{j=l+1}^L$ and Lipschitz constants $L_j = \|\boldsymbol{W}_j\|$, replacing an intermediate attention layer $l$ with an operator $\hat{\boldsymbol{Y}}_l$ induces downstream activation drift bounded by:*
+> $$\|\Delta \boldsymbol{x}_L\| \le \left(\prod_{j=l+1}^L L_j\right) \|\hat{\boldsymbol{Y}}_l - \boldsymbol{Y}_l^{\text{Softmax}}\|$$
+> *Because frozen LayerNorm scale parameters and SwiGLU MLP gates are calibrated to the sharp, high-kurtosis distribution of local Softmax attention, unwindowed smoothing of local token interactions scrambles local syntax.*
 
 Empirically, hard-swapping intermediate attention layers with a rank-$r$ BLUR operator stalls language modeling loss at $4.65$ and collapses 5-shot MMLU accuracy from **$100.0\% \to 10.0\%$** ([`results/exp23_qwen_nsal_alignment/metrics.json`](file:///home/kdrana/Projects/OLSAttentionExploration/results/exp23_qwen_nsal_alignment/metrics.json)). Conversely, **hybridizing** the recurrent state with an exact local sliding window ($W = 1024$ tokens handled by standard FlashAttention, while historical tokens $\tau < T - W$ are routed to the compressed state) completely eliminates representational shock: MMLU accuracy rebounds to **$100.0\%$** ($96.0\%$ on the expanded 25-question suite) and validation perplexity stabilizes at **$1.22$** ($4\text{k}$) and **$1.10$** ($8\text{k}$).
 
@@ -119,7 +119,7 @@ $$\hat{\boldsymbol{F}}_{\text{OLS}}(\boldsymbol{q}_t) = \boldsymbol{\phi}_q(\bol
 
 However, applying this regression directly to standard post-RoPE keys $\boldsymbol{k}_\tau^{\text{RoPE}} = \boldsymbol{R}_{\theta, \tau} \boldsymbol{k}_\tau^{\text{raw}}$ hits a severe geometric barrier:
 
-> **Theorem 2 (Rotary Phase Cancellation & PRISM Rectification):** *Let $\boldsymbol{k}$ denote a stationary semantic key vector occurring at positions $\tau_1$ and $\tau_2$ separated by distance $\Delta = |\tau_1 - \tau_2|$. Under Rotary Position Embedding $\boldsymbol{R}_{\theta, \tau}$, the expected inner product decays as an oscillatory sum across frequency bands:*
+> **Theorem 2 (Rotary Phase Cancellation & PRISM Rectification):** *Assuming stationary key representations $\boldsymbol{k}$ satisfy $\mathbb{E}[\boldsymbol{k}\boldsymbol{k}^\top] = \frac{\|\boldsymbol{k}\|^2}{d} \boldsymbol{I}_d$, for positions $\tau_1$ and $\tau_2$ separated by distance $\Delta = |\tau_1 - \tau_2|$, Rotary Position Embedding $\boldsymbol{R}_{\theta, \tau}$ induces an expected inner product that decays as an oscillatory sum across frequency bands:*
 > $$\mathbb{E}\left[ (\boldsymbol{R}_{\theta, \tau_1}\boldsymbol{k})^\top (\boldsymbol{R}_{\theta, \tau_2}\boldsymbol{k}) \right] = \|\boldsymbol{k}\|^2 \frac{2}{d} \sum_{i=1}^{d/2} \cos(\Delta \theta_i)$$
 > *For large $\Delta$, destructive interference across high-frequency rotary dimensions drives the expected correlation toward zero, smearing the sample Gramian $\boldsymbol{G}_t$ across orthogonal subspaces. Stripping RoPE phase angles prior to projection via a **PRISM** (**P**hase-**R**ectified **I**n-context **S**imilarity **M**apping) translation layer $\tilde{\boldsymbol{k}}_\tau = \boldsymbol{W}_K^{\text{trans}} \boldsymbol{k}_\tau^{\text{raw}}$ restores a stationary semantic metric space.*
 
@@ -131,7 +131,7 @@ Why, then, does a phase-rectified, locally windowed matrix state (**Hybrid-BLUR*
 
 > **Theorem 3 (The Rank-$r$ Spectral Dilution Horizon):** *Consider a sequence of length $T$ containing $T - 1$ background tokens and a single needle token $\boldsymbol{k}_*$. In any unweighted recurrent Gramian $\boldsymbol{G}_T = \boldsymbol{\phi}(\boldsymbol{k}_*)\boldsymbol{\phi}(\boldsymbol{k}_*)^\top + \sum_{\tau \ne *} \boldsymbol{\phi}(\boldsymbol{k}_\tau)\boldsymbol{\phi}(\boldsymbol{k}_\tau)^\top + \lambda \boldsymbol{I}_r \in \mathbb{R}^{r \times r}$, the relative spectral contribution of the needle decays inversely with sequence length:*
 > $$\frac{\|\boldsymbol{\phi}(\boldsymbol{k}_*)\boldsymbol{\phi}(\boldsymbol{k}_*)^\top\|_F}{\|\boldsymbol{G}_T\|_F} \le \frac{C_{\boldsymbol{\phi}}}{T \cdot \lambda_{\min}(\boldsymbol{\Sigma}_K)} = \mathcal{O}\left(\frac{1}{T}\right)$$
-> *At $T = 32,768$, a single token contributes at most $\approx 3.05 \times 10^{-5}$ of the matrix norm—falling below the precision floor of `bfloat16` arithmetic ($\approx 7.8 \times 10^{-3}$).*
+> *While linear attention accumulators typically maintain FP32 arithmetic precision, information-theoretic dilution occurs because the isolated needle's rank-1 outer product is overwhelmed by the growing background eigenvalue spectrum $\boldsymbol{G}_T$, driving its Rayleigh quotient below the effective retrieval sensitivity of query dot-products.*
 
 Fixed-rank recurrence acts as a **low-pass spectral blur**: it accurately captures the dominant principal components of the context (preserving global topic coherence, MMLU reasoning, and code synthesis at $932.0\times$ memory compression), but washes out isolated high-frequency needles into the background covariance. Preserving exact long-range recall therefore requires retaining discrete token representations for salient landmarks.
 
@@ -144,7 +144,7 @@ As demonstrated in Sections 4 and 5, `HALO + BLUR` matches pure HALO on single-n
 
 ---
 
-## 3. Act II: Query-Answer Asymmetry, Phase Transitions, and Component Ablations
+## 3. Query-Answer Asymmetry, Phase Transitions, and Component Ablations
 
 ### 3.1 The Query-Answer Asymmetry Principle
 
@@ -176,25 +176,25 @@ The top-$N$ historical tokens maximizing $\omega_\tau$ are sorted chronologicall
 To establish the exact boundary where narrow observation pooling collapses, Sub-Experiment 28B ([`results/exp28_comprehensive_review_suite/metrics.json`](file:///home/kdrana/Projects/OLSAttentionExploration/results/exp28_comprehensive_review_suite/metrics.json)) evaluated $n=10$ randomized trials per point across two diagnostic sweeps on `Qwen3.5-0.8B` ($T = 4,096, W = 512, N = 128$):
 
 ![Figure 2: Delta_QA Separation and Value-Span Length Phase Diagram](../results/exp28_comprehensive_review_suite/fig78_qa_separation_and_span_phase_transition.png)
-*Figure 2: **Left:** Retrieval accuracy vs. Syntactic Cue-to-Value separation $\Delta_{\text{QA}} \in \{1, 3, 6, 10, 15, 22\}$ tokens ($n=10$ with 95% CI bands). HALO maintains $100.0\%$ recall across all grammatical distances up to the syntactic clause horizon ($\Delta = 22$). **Right:** Exact full-string match (%) and sub-span token F1 (%) vs. Value-Span Length $L_{\text{val}} \in \{1, 3, 6, 10, 15\}$ segments. SnapKV immediately drops to $0.0\%$ exact match at $L = 3$, whereas HALO maintains $90.0\%$ exact match and retains $3.1\times$ to $5.0\times$ higher token F1.*
+*Figure 2: **Left:** Retrieval accuracy vs. Syntactic Cue-to-Value separation $\Delta_{\text{QA}} \in \{1, 3, 6, 10, 15, 22\}$ tokens ($n=10$ with 95% CI bands). HALO maintains $100.0\%$ recall across all grammatical distances, whereas isolated top-$k$ collapses to $20.0\%$ at $\Delta = 6$. **Right:** Exact full-string match (%) and sub-span token F1 (%) vs. Value-Span Length $L_{\text{val}} \in \{1, 3, 6, 10, 15\}$ segments. SnapKV immediately drops to $0.0\%$ exact match at $L = 3$, whereas HALO maintains a flawless $100.0\%$ exact match and retains $2.25\times$ to $2.9\times$ higher token F1 on extended spans.*
 
 1. **Syntactic Cue-to-Value Separation ($\Delta_{\text{QA}} \in \{1, 3, 6, 10, 15, 22\}$ tokens):**
    - At $\Delta = 1$: Isolated Top-$k$ = $80.0\% \pm 26.13\%$, SnapKV = $100.0\%$, $\text{H}_2\text{O}$ = $0.0\%$, HALO = $100.0\%$.
    - At $\Delta = 3$: Isolated Top-$k$ drops sharply to $40.0\% \pm 32.01\%$, while SnapKV and HALO maintain $100.0\%$.
    - At $\Delta = 6$: Isolated Top-$k$ collapses to $20.0\% \pm 26.13\%$, while SnapKV and HALO hold $100.0\%$.
-   - Across all grammatical separations up to $\Delta = 22$, HALO maintains a constant $100.0\% \pm 0.0\%$, whereas $\text{H}_2\text{O}$ remains completely blind ($0.0\%$).
+   - Across all grammatical separations up to $\Delta = 22$, HALO maintains a constant $100.0\% \pm 0.0\%$, whereas $\text{H}_2\text{O}$ remains completely blind ($0.0\%$). While SnapKV's $K=2$ kernel captures immediate neighbors in this synthetic template, Isolated Top-$k$ demonstrates the critical vulnerability of point-mass selection when filler tokens separate cue from value.
 2. **Value-Span Length ($L_{\text{val}} \in \{1, 3, 6, 10, 15\}$ segments):**
    - For a 1-segment code ($L = 1$), SnapKV achieves $100.0\%$ Exact Match (EM).
    - As soon as the payload spans 3 segments ($L = 3$, e.g. `"8472-X9F-Q7B"`), SnapKV collapses to **$0.0\%$ EM** (F1 = $26.67\% \pm 6.53\%$) because its narrow $K = 2$ kernel severs trailing alphanumeric segments.
    - In contrast, **HALO achieves a perfect $100.0\% \pm 0.0\%$ EM and $100.0\% \pm 0.0\%$ F1 at $L = 3$**!
-   - Across extended lengths, HALO delivers $2.9\times$ higher F1 at $L = 6$ ($66.67\%$ vs. $23.33\%$), $2.33\times$ higher at $L = 10$ ($35.00\%$ vs. $15.00\%$), and $2.25\times$ higher at $L = 15$ ($24.00\%$ vs. $10.67\%$).
+   - Note that because the evaluation used a fixed generation cutoff (`max_new_tokens = 16`), targets with $L \ge 6$ (requiring 18 to 38 tokens) naturally hit the generation horizon, capping Exact Match. In this regime, the metric reflects sub-span token retention, where HALO delivers $2.9\times$ higher F1 at $L = 6$ ($66.67\%$ vs. $23.33\%$), $2.33\times$ higher at $L = 10$ ($35.00\%$ vs. $15.00\%$), and $2.25\times$ higher at $L = 15$ ($24.00\%$ vs. $10.67\%$). Scaling exact match for long identifiers simply requires scaling generation budgets.
 
 ### 3.4 Decisive Leave-One-Out Component Ablation & Multi-Turn Durability
 
 To dissect the exact role of each mathematical module, Sub-Experiment 28D evaluated composite UUID retrieval across six strictly controlled leave-one-out configurations ($n=10$ trials):
 
 ![Figure 3: Component Leave-One-Out Ablation and Multi-Turn Durability](../results/exp28_comprehensive_review_suite/fig80_component_ablation_and_multiturn.png)
-*Figure 3: **Left:** Leave-one-out component ablation proving that wide contiguous kernels and PRISM de-rotation are necessary to capture extended entity payloads. **Right:** Multi-turn follow-up query durability on frozen KV caches: SnapKV drops from $100.0\%$ on Turn 1 to $0.0\%$ on Turn 2 when queried about an unqueried anomaly.*
+*Figure 3: **Left:** Leave-one-out component ablation proving that wide contiguous spatial envelopes ($K=16$) prevent payload truncation on multi-token entities. **Right:** Multi-turn follow-up query durability on frozen KV caches: SnapKV drops from $100.0\%$ on Turn 1 to $0.0\%$ on Turn 2 when queried about an unqueried anomaly.*
 
 ##### Table 1: Leave-One-Out Component Ablation (UUID Retrieval, $T = 4,096, W = 512, N = 128$)
 | Configuration | Diffusion Kernel | PRISM De-Rot | Surprise $\beta$ | Accuracy ($n=10$) | Mechanism Diagnosis |
@@ -206,7 +206,9 @@ To dissect the exact role of each mathematical module, Sub-Experiment 28D evalua
 | **(5) Exp Kernel + PRISM De-Rot** | Exponential | **Yes** | $0.0$ | **$\mathbf{100.0\% \pm 0.0\%}$** | Restores stationary metric alignment |
 | **(6) Full HALO (+ Bottom-Up Surprise)** | Exponential | **Yes** | $\mathbf{0.15}$ | **$\mathbf{100.0\% \pm 0.0\%}$** | Reserves autonomous anomaly quota |
 
-In **Multi-Turn Durability** (Figure 3, Right), Turn 1 asks about a standard reading (compressing the cache to $N = 128$), while Turn 2 queries an unmentioned anomaly using the *frozen* Turn-1 cache. SnapKV drops from $100.0\%$ on Turn 1 to **$0.0\% \pm 0.0\%$ on Turn 2** because pure top-down attention permanently evicted the unqueried anomaly. In contrast, HALO retains the unqueried anomaly due to bottom-up surprise slot reservation ($20.0\% - 30.0\%$).
+Crucially, Table 1 reveals that on single isolated UUID needles, wide contiguous pooling alone ($K=16$) suffices to capture the multi-segment alphanumeric payload ($100.0\%$). However, on adversarial distractor benchmarks (MK-NIAH, Section 4.2), un-rotated alignment is decisive: SnapKV's post-RoPE observation query is misled by distractor keywords ($0.0\%$), whereas HALO's unrotated consensus alignment isolates the genuine target clause ($90.0\%$).
+
+In **Multi-Turn Durability** (Figure 3, Right), Turn 1 asks about a standard reading (compressing the cache to $N = 128$), while Turn 2 queries an unmentioned anomaly using the *frozen* Turn-1 cache. SnapKV drops from $100.0\%$ on Turn 1 to **$0.0\% \pm 0.0\%$ on Turn 2** because pure top-down attention permanently evicted the unqueried anomaly. In contrast, HALO retains historical landmarks across conversations ($20.0\%\text{–}30.0\%$), though bottom-up surprise ($\beta = 0.15$) introduces novelty sensitivity without outperforming pure top-down halo under dense uniform haystacks.
 
 ### 3.5 Hyperparameter Sensitivity & Flat Plateau Landscape ($\beta \times \gamma$)
 
@@ -219,7 +221,7 @@ Across $\beta \in [0.0, 0.50]$ and $\gamma \in [0.02, 0.25]$, HALO exhibits a pe
 
 ---
 
-## 4. Act III: Canonical Literature Benchmarks (RULER 4-Axis Suite & Extractive Summarization)
+## 4. Canonical Literature Benchmarks: RULER 4-Axis Suite and Extractive Summarization
 
 To ensure direct comparability with existing long-context literature, Sub-Experiment 28C evaluated the four canonical task axes from **RULER** (Hsieh et al., COLM 2024) alongside **LongBench** extractive summarization on `Qwen3.5-0.8B` ($T = 4,096, W = 512, N = 128$, $n = 10$ randomized trials per condition):
 
@@ -230,10 +232,10 @@ To ensure direct comparability with existing long-context literature, Sub-Experi
 | Task Family & Specification | Full Softmax | StreamingLLM | Causal $\text{H}_2\text{O}$ | SnapKV ($K=2$) | **HALO (Ours)** | **HALO + BLUR** |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **RULER 1: Single-NIAH (S-NIAH)** | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $10.0\% \pm 19.6\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| **RULER 2: MK-NIAH (12 Distractors)** | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $\mathbf{70.0\% \pm 29.9\%}$ | $\mathbf{50.0\% \pm 32.7\%}$ |
+| **RULER 2: MK-NIAH (12 Distractors)** | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $\mathbf{90.0\% \pm 19.6\%}$ | $0.0\% \pm 0.0\%$ |
 | **RULER 3: 2-Hop Variable Tracking** | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $70.0\% \pm 29.9\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| **RULER 4: Common Words Aggregation** | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $3.33\% \pm 6.5\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ |
-| **LongBench: Extractive Summary F1** | $52.5\% \pm 4.9\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $50.0\% \pm 0.0\%$ | $\mathbf{50.0\% \pm 7.3\%}$ | $\mathbf{50.0\% \pm 7.3\%}$ |
+| **RULER 4: Common Words Aggregation** | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $3.33\% \pm 6.53\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ |
+| **LongBench: Extractive Summary F1** | $52.5\% \pm 4.9\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $50.0\% \pm 0.0\%$ | $\mathbf{50.0\% \pm 0.0\%}$ | $\mathbf{55.0\% \pm 6.53\%}$ |
 
 ### 4.1 RULER Axis 1: Single Needle Retrieval (S-NIAH)
 Full Softmax, SnapKV, HALO, and HALO+BLUR all achieve **$100.0\% \pm 0.0\%$** recall across all needle depths. StreamingLLM drops to $0.0\%$ because the needle resides outside the $W=512$ local window, while Causal $\text{H}_2\text{O}$ scores only $10.0\% \pm 19.6\%$.
@@ -241,7 +243,8 @@ Full Softmax, SnapKV, HALO, and HALO+BLUR all achieve **$100.0\% \pm 0.0\%$** re
 ### 4.2 RULER Axis 2: Adversarial Multi-Key Distractor NIAH (MK-NIAH)
 In RULER Axis 2, **12 adversarial distractor sentences** sharing the exact query keywords are scattered throughout the haystack alongside 1 true target needle.
 - **SnapKV collapses completely to $0.0\% \pm 0.0\%$:** Because post-RoPE observation queries match the shared distractor keywords, narrow $K=2$ pooling floods the cache budget with distractor fragments, entirely evicting the true target.
-- **HALO achieves $\mathbf{70.0\% \pm 29.9\%}$ recall** (and HALO+BLUR achieves $\mathbf{50.0\% \pm 32.7\%}$): The combination of PRISM de-rotation and wide contiguous diffusion allows the genuine target clause to outcompete distractor fragments.
+- **HALO achieves $\mathbf{90.0\% \pm 19.6\%}$ recall:** The combination of PRISM de-rotation and wide contiguous diffusion allows the unrotated consensus representations to isolate the genuine target clause from distractor fragments.
+- **HALO + BLUR drops to $0.0\% \pm 0.0\%$:** While residual block averaging effectively retains broad gist for summarization (Section 4.4), compressing evicted context into 16 linear summary vectors smears the 12 dense distractor keys across the feature space, creating spurious associative matches that drown out the needle under severe adversarial distractor density.
 
 ### 4.3 RULER Axis 3: Multi-Hop Variable Tracking (2-Hop VT)
 Primary register binding (`ALPHA_REG = {code}`) is placed at early depth, followed by secondary pointer linking (`BETA_PTR -> ALPHA_REG`) at middle depth.
@@ -249,11 +252,11 @@ Primary register binding (`ALPHA_REG = {code}`) is placed at early depth, follow
 - **HALO and HALO + BLUR achieve $\mathbf{100.0\% \pm 0.0\%}$**, successfully retaining both intermediate pointer definitions across the document.
 
 ### 4.4 RULER Axis 4 & LongBench: Frequency Aggregation & Extractive Summarization
-On LongBench multi-sentence summarization (recalling 4 distinct mission facts), Full Softmax scores $52.5\% \pm 4.9\%$ Fact F1. **HALO and HALO + BLUR match Full Softmax with $\mathbf{50.0\% \pm 7.3\%}$ F1**, whereas StreamingLLM and $\text{H}_2\text{O}$ score $0.0\%$.
+On LongBench multi-sentence summarization (recalling 4 distinct mission facts), Full Softmax scores $52.5\% \pm 4.9\%$ Fact F1. **HALO achieves $50.0\% \pm 0.0\%$ and HALO + BLUR achieves $\mathbf{55.0\% \pm 6.53\%}$ F1** (matching or slightly exceeding uncompressed Softmax), whereas StreamingLLM and $\text{H}_2\text{O}$ score $0.0\%$. In RULER Axis 4 (Common Word Aggregation), all methods achieve $0.0\%$ (with SnapKV at $3.33\% \pm 6.53\%$) because un-finetuned base language models without in-context few-shot prompts default to fluent narrative text continuation rather than generating strictly formatted JSON word-frequency tables.
 
 ---
 
-## 5. Act IV: Multi-Organization Foundation Model Diversity & Hardware Profiling
+## 5. Multi-Organization Foundation Model Diversity and Hardware Profiling
 
 ### 5.1 Cross-Company Generalization across Alibaba, Meta, and HuggingFace
 
