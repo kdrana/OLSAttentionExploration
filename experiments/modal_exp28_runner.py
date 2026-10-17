@@ -37,30 +37,21 @@ image = (
 
 
 @app.function(image=image, gpu="A10G", timeout=300)
-def run_worker_28a_qwen() -> dict:
+def run_worker_28a_task(model_name: str, task_name: str) -> dict:
     try:
-        from experiments.run_comprehensive_review_suite import run_subexp_28a_qwen
-        return run_subexp_28a_qwen(device="cuda")
-    except Exception as e:
-        import traceback
-        return {"error": str(e), "traceback": traceback.format_exc()}
-
-
-@app.function(image=image, gpu="A10G", timeout=300)
-def run_worker_28a_llama() -> dict:
-    try:
-        from experiments.run_comprehensive_review_suite import run_subexp_28a_llama
-        return run_subexp_28a_llama(device="cuda")
-    except Exception as e:
-        import traceback
-        return {"error": str(e), "traceback": traceback.format_exc()}
-
-
-@app.function(image=image, gpu="A10G", timeout=300)
-def run_worker_28a_smollm() -> dict:
-    try:
-        from experiments.run_comprehensive_review_suite import run_subexp_28a_smollm
-        return run_subexp_28a_smollm(device="cuda")
+        from experiments.run_comprehensive_review_suite import (
+            run_subexp_28a_qwen,
+            run_subexp_28a_llama,
+            run_subexp_28a_smollm,
+        )
+        if model_name == "qwen":
+            return run_subexp_28a_qwen(task_filter=task_name, device="cuda")
+        elif model_name == "llama":
+            return run_subexp_28a_llama(task_filter=task_name, device="cuda")
+        elif model_name == "smollm":
+            return run_subexp_28a_smollm(task_filter=task_name, device="cuda")
+        else:
+            raise ValueError(f"Unknown model_name: {model_name}")
     except Exception as e:
         import traceback
         return {"error": str(e), "traceback": traceback.format_exc()}
@@ -166,42 +157,50 @@ def generate_exp28_plots_cloud(metrics: dict) -> dict[str, bytes]:
     }
 
     # -------------------------------------------------------------
-    # Figure 77: Cross-Company Generalization (3 Models, n=10)
+    # -------------------------------------------------------------
+    # Figure 77: Cross-Company Generalization (3 Models, n=30 per task, n=90 total)
     # -------------------------------------------------------------
     sub_28a = metrics.get("subexp_28a_cross_models", {})
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5.2), dpi=300, sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(19, 5.5), dpi=300, sharey=True)
     models = [
         ("qwen3.5_0.8b", "Alibaba Qwen3.5-0.8B (Hybrid)"),
         ("llama3.2_1b", "Meta Llama-3.2-1B (Full 16L)"),
         ("smollm2_1.7b", "HuggingFace SmolLM2-1.7B (Full 24L)"),
     ]
     methods_order = ["original_softmax", "streaming_llm", "h2o", "snapkv", "halo", "halo_blur"]
+    task_keys = [
+        ("sniah", "S-NIAH\n(n=30)"),
+        ("uuid", "UUID Needle\n(n=30)"),
+        ("retroactive", "Retroactive\n(n=30)"),
+        ("composite", "Composite\n(n=90)"),
+    ]
+    bar_width = 0.13
+    offsets = np.linspace(-bar_width * 2.5, bar_width * 2.5, len(methods_order))
+    x = np.arange(len(task_keys))
 
     for ax, (m_key, title) in zip(axes, models):
         m_data = sub_28a.get(m_key, {})
-        means = []
-        errors = []
-        bar_colors = []
-        for meth in methods_order:
-            val_stat = m_data.get(meth, {}).get("composite", {"mean": 0.0, "ci95": 0.0})
-            means.append(val_stat.get("mean", 0.0))
-            errors.append(val_stat.get("ci95", 0.0))
-            bar_colors.append(palette.get(meth, "#333333"))
+        for meth, offset in zip(methods_order, offsets):
+            scores = []
+            errors = []
+            for t_k, _ in task_keys:
+                st = m_data.get(meth, {}).get(t_k, {"mean": 0.0, "ci95": 0.0})
+                scores.append(st.get("mean", 0.0))
+                errors.append(st.get("ci95", 0.0))
+            ax.bar(x + offset, scores, bar_width, yerr=errors, capsize=2.5,
+                   color=palette.get(meth, "#333333"), label=labels.get(meth, meth) if ax == axes[0] else "",
+                   alpha=0.9, edgecolor="black", lw=0.7)
 
-        x = np.arange(len(methods_order))
-        bars = ax.bar(x, means, yerr=errors, capsize=4, color=bar_colors, alpha=0.88, edgecolor="black", lw=1.0)
+        ax.axvline(x=2.5, color="gray", linestyle=":", alpha=0.6, lw=1.2)
         ax.set_title(title, fontsize=12, fontweight="bold")
         ax.set_xticks(x)
-        ax.set_xticklabels([m.replace("_", "\n") for m in methods_order], fontsize=8.5)
-        ax.set_ylim(-5, 110)
+        ax.set_xticklabels([t[1] for t in task_keys], fontsize=9.5, fontweight="bold")
+        ax.set_ylim(-5, 115)
         ax.grid(axis="y", linestyle="--", alpha=0.5)
 
-        for bar, m_val in zip(bars, means):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 3.0, f"{m_val:.1f}%",
-                    ha="center", va="bottom", fontsize=7.5, fontweight="bold")
-
-    axes[0].set_ylabel("Composite Retrieval Recall (%) [n=30, 95% CI]", fontsize=11, fontweight="bold")
-    plt.suptitle("Cross-Company Generalization: Factual Recall Across 3 Modern LLM Architectures (EXP-28A, n=30)", fontsize=13, fontweight="bold", y=1.02)
+    axes[0].set_ylabel("Exact Factual Recall (%) [95% CI]", fontsize=11, fontweight="bold")
+    fig.legend(loc="upper center", bbox_to_anchor=(0.5, 1.05), ncol=6, fontsize=9.0, frameon=True)
+    plt.suptitle("Cross-Company Generalization: Multi-Task Breakdown Across 3 Modern LLM Architectures (EXP-28A, n=30 per task, n=90 total)", fontsize=12.5, fontweight="bold", y=1.12)
     plt.tight_layout()
     buf = io.BytesIO()
     plt.savefig(buf, format="png", dpi=300, bbox_inches="tight")
@@ -464,16 +463,19 @@ def main():
         except Exception:
             cached = {}
 
-    has_28b = False  # Re-run Delta_QA (leakage fix) and Span
+    has_28b = "subexp_28b_qa_phase_diagram" in cached and "delta_qa_sweep" in cached.get("subexp_28b_qa_phase_diagram", {})
     has_28c = "subexp_28c_ruler_and_longbench" in cached and "s_niah" in cached.get("subexp_28c_ruler_and_longbench", {})
-    has_28d_abl = False  # Re-run Ablations and Multi-Turn durability (frozen cache and reserved slots)
+    has_28d_abl = "subexp_28d_ablations_and_multiturn" in cached and "component_ablation" in cached.get("subexp_28d_ablations_and_multiturn", {})
     has_28d_grid = "subexp_28d_ablations_and_multiturn" in cached and "beta_gamma_grid" in cached.get("subexp_28d_ablations_and_multiturn", {})
     has_28e = "subexp_28e_hardware_profiling" in cached and "halo" in cached.get("subexp_28e_hardware_profiling", {})
 
-    # Spawn 28A workers (n=30 cross-company)
-    f_qwen = run_worker_28a_qwen.spawn()
-    f_llama = run_worker_28a_llama.spawn()
-    f_smollm = run_worker_28a_smollm.spawn()
+    # Spawn 28A workers (n=30 per task grouping, n=90 composite per model, across 9 parallel workers)
+    models_28a = ["qwen", "llama", "smollm"]
+    tasks_28a = ["sniah", "uuid", "retroactive"]
+    spawns_28a = {}
+    for m in models_28a:
+        for t in tasks_28a:
+            spawns_28a[(m, t)] = run_worker_28a_task.spawn(m, t)
 
     # Conditionally spawn remaining workers if not cached
     f_b_delta = run_worker_28b_delta_qa.spawn() if not has_28b else None
@@ -486,14 +488,48 @@ def main():
 
     print("\n[Modal Orchestrator] GPU worker tasks dispatched. Waiting for results...")
 
-    res_qwen = f_qwen.get()
-    print("  [✓] Worker 28A-Qwen Completed")
+    results_28a_raw = {}
+    for (m, t), f in spawns_28a.items():
+        results_28a_raw[(m, t)] = f.get()
+        print(f"  [✓] Worker 28A {m.upper()} - {t.upper()} Completed")
 
-    res_llama = f_llama.get()
-    print("  [✓] Worker 28A-Llama Completed")
+    import math
 
-    res_smollm = f_smollm.get()
-    print("  [✓] Worker 28A-SmolLM Completed")
+    def compute_stats_local(vals: list) -> dict:
+        n = len(vals)
+        if n == 0:
+            return {"n": 0, "mean": 0.0, "std": 0.0, "sem": 0.0, "ci95": 0.0}
+        mean = sum(vals) / n
+        var = sum((x - mean) ** 2 for x in vals) / (n - 1) if n > 1 else 0.0
+        std = math.sqrt(var)
+        sem = std / math.sqrt(n) if n > 1 else 0.0
+        ci95 = 1.96 * sem
+        return {
+            "n": n,
+            "mean": round(mean, 2),
+            "std": round(std, 2),
+            "sem": round(sem, 2),
+            "ci95": round(ci95, 2),
+        }
+
+    res_qwen = {}
+    res_llama = {}
+    res_smollm = {}
+    model_res_map = {"qwen": res_qwen, "llama": res_llama, "smollm": res_smollm}
+    methods = ["original_softmax", "streaming_llm", "h2o", "snapkv", "halo", "halo_blur"]
+    for m in models_28a:
+        target_dict = model_res_map[m]
+        for meth in methods:
+            sniah_s = results_28a_raw[(m, "sniah")][meth]["scores"]
+            uuid_s = results_28a_raw[(m, "uuid")][meth]["scores"]
+            retro_s = results_28a_raw[(m, "retroactive")][meth]["scores"]
+            tot_s = sniah_s + uuid_s + retro_s
+            target_dict[meth] = {
+                "composite": compute_stats_local(tot_s),
+                "sniah": compute_stats_local(sniah_s),
+                "uuid": compute_stats_local(uuid_s),
+                "retroactive": compute_stats_local(retro_s),
+            }
 
     if has_28b:
         print("  [✓] Worker 28B-Delta & Span Loaded from verified cache")

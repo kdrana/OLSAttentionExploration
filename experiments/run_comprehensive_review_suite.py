@@ -141,14 +141,14 @@ def run_generation(
 # =====================================================================
 # SUB-EXPERIMENT 28A: Cross-Company Model Family Workers (n=30)
 # =====================================================================
-def run_single_model_28a(model_cfg: dict, device: str = "cuda") -> Dict[str, Any]:
-    """Evaluates one model family across 6 compression paradigms (n=30 randomized trials)."""
+def run_single_model_28a(model_cfg: dict, task_filter: Optional[str] = None, device: str = "cuda") -> Dict[str, Any]:
+    """Evaluates one model family across 6 compression paradigms (n=30 per task grouping, n=90 composite)."""
     m_name = model_cfg["name"]
     hf_id = model_cfg["hf_id"]
     layer_indices = model_cfg["layers"]
     is_instruct = "instruct" in m_name.lower() or "instruct" in hf_id.lower()
 
-    print(f"\n>>> Benchmarking Model Family: {m_name} ({hf_id}, Instruct={is_instruct}) <<<")
+    print(f"\n>>> Benchmarking Model Family: {m_name} ({hf_id}, Instruct={is_instruct}, TaskFilter={task_filter}) <<<")
     try:
         model, tokenizer = load_model_and_tokenizer(hf_id, device=device)
     except Exception as e:
@@ -171,25 +171,30 @@ def run_single_model_28a(model_cfg: dict, device: str = "cuda") -> Dict[str, Any
     window_size = 512
     max_salient = 128
 
-    # High-Power n=30 trials: 12 S-NIAH, 10 UUID, 8 Retroactive
-    rng = random.Random(42)
+    # High-Power n=30 trials per task grouping (Total n=90 composite trials)
+    rng_sniah = random.Random(42)
+    sniah_depths = [round(float(x), 4) for x in np.linspace(0.08, 0.92, 30)]
     sniah_trials = []
-    for d in [0.10, 0.18, 0.26, 0.34, 0.42, 0.50, 0.58, 0.66, 0.74, 0.82, 0.88, 0.92]:
-        code = f"{rng.randint(10000, 99999)}"
+    for d in sniah_depths:
+        code = f"{rng_sniah.randint(10000, 99999)}"
         n_str = f"\n[CRITICAL NOTE: The secret operational access code for Project Antigravity is {code}.]\n"
         q_str = f"\nQuestion: What is the secret operational access code for Project Antigravity? Answer with only the 5-digit code:"
         sniah_trials.append((d, n_str, q_str, code))
 
+    rng_uuid = random.Random(1337)
+    uuid_depths = [round(float(x), 4) for x in np.linspace(0.08, 0.92, 30)]
     uuid_trials = []
-    for d in [0.12, 0.20, 0.28, 0.36, 0.45, 0.54, 0.63, 0.72, 0.80, 0.86]:
-        code = f"{rng.choice(['X9F','A3K','Q7B','M4L'])}-{rng.randint(100, 999)}-{rng.choice(['CZ8','WP2','RN5'])}"
+    for d in uuid_depths:
+        code = f"{rng_uuid.choice(['X9F','A3K','Q7B','M4L','V2R','Z8J'])}-{rng_uuid.randint(100, 999)}-{rng_uuid.choice(['CZ8','WP2','RN5','TK7','DY4'])}"
         n_str = f"\n[The target alpha-numeric registration identifier assigned to the primary node is strictly recorded in the vault as {code} for verification.]\n"
         q_str = f"\nQuestion: What is the target alpha-numeric registration identifier assigned to the primary node? Answer with only the identifier:"
         uuid_trials.append((d, n_str, q_str, code))
 
+    rng_retro = random.Random(2026)
+    retro_depths = [round(float(x), 4) for x in np.linspace(0.08, 0.92, 30)]
     retro_trials = []
-    for d in [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85]:
-        code = f"{rng.randint(10000, 99999)}"
+    for d in retro_depths:
+        code = f"{rng_retro.randint(10000, 99999)}"
         n_str = f"\n[The secret emergency override authorization code is {code}. Make sure you remember this confirmation note.]\n"
         q_str = f"\nQuestion: What is the secret emergency override authorization code? Answer with only the code:"
         retro_trials.append((d, n_str, q_str, code))
@@ -197,7 +202,7 @@ def run_single_model_28a(model_cfg: dict, device: str = "cuda") -> Dict[str, Any
     results = {}
 
     for method in methods:
-        print(f"  --> Testing Method: {method.upper()} on {m_name} (n=30)...")
+        print(f"  --> Testing Method: {method.upper()} on {m_name} (Filter={task_filter})...")
         if method == "original_softmax":
             apply_halo_adapter_generic(
                 model, window_size=target_len + 100, max_salient=0, mode="original_softmax",
@@ -233,35 +238,48 @@ def run_single_model_28a(model_cfg: dict, device: str = "cuda") -> Dict[str, Any
             )
 
         sniah_scores = []
-        for d, n_str, q_str, code in sniah_trials:
-            toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d, is_instruct=is_instruct)
-            inp = torch.tensor([toks], device=device)
-            gen = run_generation(model, tokenizer, device, inp, max_new_tokens=10)
-            sniah_scores.append(100.0 if code in gen else 0.0)
+        if task_filter in (None, "sniah"):
+            for d, n_str, q_str, code in sniah_trials:
+                toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d, is_instruct=is_instruct)
+                inp = torch.tensor([toks], device=device)
+                gen = run_generation(model, tokenizer, device, inp, max_new_tokens=10)
+                sniah_scores.append(100.0 if code in gen else 0.0)
 
         uuid_scores = []
-        for d, n_str, q_str, code in uuid_trials:
-            toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d, is_instruct=is_instruct)
-            inp = torch.tensor([toks], device=device)
-            gen = run_generation(model, tokenizer, device, inp, max_new_tokens=16)
-            uuid_scores.append(100.0 if code in gen else 0.0)
+        if task_filter in (None, "uuid"):
+            for d, n_str, q_str, code in uuid_trials:
+                toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d, is_instruct=is_instruct)
+                inp = torch.tensor([toks], device=device)
+                gen = run_generation(model, tokenizer, device, inp, max_new_tokens=16)
+                uuid_scores.append(100.0 if code in gen else 0.0)
 
         retro_scores = []
-        for d, n_str, q_str, code in retro_trials:
-            toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d, is_instruct=is_instruct)
-            inp = torch.tensor([toks], device=device)
-            gen = run_generation(model, tokenizer, device, inp, max_new_tokens=10)
-            retro_scores.append(100.0 if code in gen else 0.0)
+        if task_filter in (None, "retroactive"):
+            for d, n_str, q_str, code in retro_trials:
+                toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d, is_instruct=is_instruct)
+                inp = torch.tensor([toks], device=device)
+                gen = run_generation(model, tokenizer, device, inp, max_new_tokens=10)
+                retro_scores.append(100.0 if code in gen else 0.0)
 
-        total_scores = sniah_scores + uuid_scores + retro_scores
-        results[method] = {
-            "composite": compute_stats(total_scores),
-            "sniah": compute_stats(sniah_scores),
-            "uuid": compute_stats(uuid_scores),
-            "retroactive": compute_stats(retro_scores),
-        }
-        print(f"    --> {method.upper()}: Composite Recall (n=30) = {results[method]['composite']['mean']}% "
-              f"(±{results[method]['composite']['ci95']}%)")
+        if task_filter == "sniah":
+            results[method] = {"scores": sniah_scores, "stats": compute_stats(sniah_scores)}
+            print(f"    --> {method.upper()} S-NIAH (n=30) = {results[method]['stats']['mean']}%")
+        elif task_filter == "uuid":
+            results[method] = {"scores": uuid_scores, "stats": compute_stats(uuid_scores)}
+            print(f"    --> {method.upper()} UUID (n=30) = {results[method]['stats']['mean']}%")
+        elif task_filter == "retroactive":
+            results[method] = {"scores": retro_scores, "stats": compute_stats(retro_scores)}
+            print(f"    --> {method.upper()} Retroactive (n=30) = {results[method]['stats']['mean']}%")
+        else:
+            total_scores = sniah_scores + uuid_scores + retro_scores
+            results[method] = {
+                "composite": compute_stats(total_scores),
+                "sniah": compute_stats(sniah_scores),
+                "uuid": compute_stats(uuid_scores),
+                "retroactive": compute_stats(retro_scores),
+            }
+            print(f"    --> {method.upper()}: Composite Recall (n=90) = {results[method]['composite']['mean']}% "
+                  f"(±{results[method]['composite']['ci95']}%)")
 
     del model
     gc.collect()
@@ -271,19 +289,19 @@ def run_single_model_28a(model_cfg: dict, device: str = "cuda") -> Dict[str, Any
     return results
 
 
-def run_subexp_28a_qwen(device: str = "cuda") -> Dict[str, Any]:
+def run_subexp_28a_qwen(task_filter: Optional[str] = None, device: str = "cuda") -> Dict[str, Any]:
     cfg = {"name": "qwen3.5_0.8b", "hf_id": "Qwen/Qwen3.5-0.8B-Base", "layers": [3, 7, 11, 15, 19, 23]}
-    return run_single_model_28a(cfg, device=device)
+    return run_single_model_28a(cfg, task_filter=task_filter, device=device)
 
 
-def run_subexp_28a_llama(device: str = "cuda") -> Dict[str, Any]:
+def run_subexp_28a_llama(task_filter: Optional[str] = None, device: str = "cuda") -> Dict[str, Any]:
     cfg = {"name": "llama3.2_1b", "hf_id": "unsloth/Llama-3.2-1B-Instruct", "layers": None}
-    return run_single_model_28a(cfg, device=device)
+    return run_single_model_28a(cfg, task_filter=task_filter, device=device)
 
 
-def run_subexp_28a_smollm(device: str = "cuda") -> Dict[str, Any]:
+def run_subexp_28a_smollm(task_filter: Optional[str] = None, device: str = "cuda") -> Dict[str, Any]:
     cfg = {"name": "smollm2_1.7b", "hf_id": "HuggingFaceTB/SmolLM2-1.7B-Instruct", "layers": None}
-    return run_single_model_28a(cfg, device=device)
+    return run_single_model_28a(cfg, task_filter=task_filter, device=device)
 
 
 # =====================================================================

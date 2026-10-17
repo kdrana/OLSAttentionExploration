@@ -1557,21 +1557,21 @@ Does continuous contiguous salience diffusion (HALO) generalize across independe
 
 #### Quantitative Results Table (NVIDIA A10G Cloud GPU)
 
-##### Part 1: Sub-Experiment 28A — High-Power Cross-Company Benchmark Across 3 Model Families ($T = 4,096, W = 512, N = 128$, $n = 30$ randomized trials with $95\%$ CI)
+##### Part 1: Sub-Experiment 28A — High-Power Cross-Company Benchmark Across 3 Model Families ($T = 4,096, W = 512, N = 128$, $n = 30$ randomized trials per task, $n = 90$ composite trials with $95\%$ CI)
 | Model Family & Architecture | Original Softmax (Full) | StreamingLLM (Sink+$W$) | Causal $\text{H}_2\text{O}$ | SnapKV (Box $K=2$) | **HALO (Ours)** | **HALO + BLUR (Unified)** |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Alibaba Qwen3.5-0.8B** (Hybrid Attention) | $100.0\% \pm 0.0\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $56.67\% \pm 18.04\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| - *S-NIAH Passkey (12 trials)* | $100.0\% \pm 0.0\%$ | $8.33\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| - *UUID Needle (10 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| - *Retroactive Framing (8 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $62.50\% \pm 35.86\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| **Meta Llama-3.2-1B** (Full 16 Layers) | $66.67\% \pm 17.16\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $66.67\% \pm 17.16\%$ | $\mathbf{66.67\% \pm 17.16\%}$ | $\mathbf{66.67\% \pm 17.16\%}$ |
-| - *S-NIAH Passkey (12 trials)* | $16.67\% \pm 22.02\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $16.67\% \pm 22.02\%$ | $\mathbf{16.67\% \pm 22.02\%}$ | $\mathbf{16.67\% \pm 22.02\%}$ |
-| - *UUID Needle (10 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| - *Retroactive Framing (8 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| **HuggingFace SmolLM2-1.7B** (Full 24 Layers, 32-head MHA) | $80.00\% \pm 14.56\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $50.00\% \pm 18.20\%$ | $\mathbf{53.33\% \pm 18.16\%}$ | $43.33\% \pm 18.04\%$ |
-| - *S-NIAH Passkey (12 trials)* | $58.33\% \pm 29.13\%$ | $8.33\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $58.33\% \pm 29.13\%$ | $\mathbf{58.33\% \pm 29.13\%}$ | $\mathbf{58.33\% \pm 29.13\%}$ |
-| - *UUID Needle (10 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $30.00\% \pm 29.94\%$ | $\mathbf{50.00\% \pm 32.67\%}$ | $30.00\% \pm 29.94\%$ |
-| - *Retroactive Framing (8 trials)* | $87.50\% \pm 24.50\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $62.50\% \pm 35.86\%$ | $50.00\% \pm 37.04\%$ | $37.50\% \pm 35.86\%$ |
+| **Alibaba Qwen3.5-0.8B** (Hybrid Attention) | $100.0\% \pm 0.0\%$ | $6.67\% \pm 5.18\%$ | $6.67\% \pm 5.18\%$ | $58.89\% \pm 10.22\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *S-NIAH Passkey ($n=30$)* | $100.0\% \pm 0.0\%$ | $6.67\% \pm 9.08\%$ | $6.67\% \pm 9.08\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *UUID Needle ($n=30$)* | $100.0\% \pm 0.0\%$ | $6.67\% \pm 9.08\%$ | $6.67\% \pm 9.08\%$ | $6.67\% \pm 9.08\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *Retroactive Framing ($n=30$)* | $100.0\% \pm 0.0\%$ | $6.67\% \pm 9.08\%$ | $6.67\% \pm 9.08\%$ | $70.00\% \pm 16.68\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| **Meta Llama-3.2-1B** (Full 16 Layers) | $75.56\% \pm 8.93\%$ | $5.56\% \pm 4.76\%$ | $6.67\% \pm 5.18\%$ | $71.11\% \pm 9.42\%$ | $\mathbf{76.67\% \pm 8.79\%}$ | $73.33\% \pm 9.19\%$ |
+| - *S-NIAH Passkey ($n=30$)* | $26.67\% \pm 16.10\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $30.00\% \pm 16.68\%$ | $\mathbf{30.00\% \pm 16.68\%}$ | $\mathbf{30.00\% \pm 16.68\%}$ |
+| - *UUID Needle ($n=30$)* | $100.0\% \pm 0.0\%$ | $6.67\% \pm 9.08\%$ | $6.67\% \pm 9.08\%$ | $83.33\% \pm 13.56\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $90.00\% \pm 10.92\%$ |
+| - *Retroactive Framing ($n=30$)* | $100.0\% \pm 0.0\%$ | $10.00\% \pm 10.92\%$ | $13.33\% \pm 12.37\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| **HuggingFace SmolLM2-1.7B** (Full 24 Layers, 32-head MHA) | $81.11\% \pm 8.13\%$ | $5.56\% \pm 4.76\%$ | $5.56\% \pm 4.76\%$ | $48.89\% \pm 10.39\%$ | $\mathbf{60.00\% \pm 10.18\%}$ | $43.33\% \pm 10.30\%$ |
+| - *S-NIAH Passkey ($n=30$)* | $60.00\% \pm 17.83\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $56.67\% \pm 18.04\%$ | $\mathbf{60.00\% \pm 17.83\%}$ | $56.67\% \pm 18.04\%$ |
+| - *UUID Needle ($n=30$)* | $100.0\% \pm 0.0\%$ | $6.67\% \pm 9.08\%$ | $6.67\% \pm 9.08\%$ | $26.67\% \pm 16.10\%$ | $\mathbf{56.67\% \pm 18.04\%}$ | $46.67\% \pm 18.16\%$ |
+| - *Retroactive Framing ($n=30$)* | $83.33\% \pm 13.56\%$ | $6.67\% \pm 9.08\%$ | $6.67\% \pm 9.08\%$ | $63.33\% \pm 17.54\%$ | $63.33\% \pm 17.54\%$ | $26.67\% \pm 16.10\%$ |
 
 ##### Part 2: Sub-Experiment 28B — The $\Delta_{\text{QA}}$ Separation & Value-Span Length Phase Transition
 - **Syntactic Cue-to-Value Distance $\Delta_{\text{QA}} \in \{1, 3, 6, 10, 15, 22\}$ tokens ($n=10$ per point):**
@@ -1637,7 +1637,7 @@ Does continuous contiguous salience diffusion (HALO) generalize across independe
    On multi-segment serial identifiers, SnapKV drops to $0.0\%$ Exact Match (severing the alphanumeric payload), whereas HALO achieves $\mathbf{90.0\%}$ Exact Match and $\mathbf{96.67\%}$ Token F1. Across all span lengths up to $L = 15$, HALO consistently preserves contiguous payload spans.
 3. **Decisive Component Isolation (PRISM Proof):**
    Ablating PRISM de-rotation drops UUID retrieval from $100.0\%$ to $0.0\%$, regardless of whether a narrow box ($K=2$), wide box ($K=16$), or exponential kernel ($K=16$) is used. This proves Theorem 2: rotary phase destruction cannot be solved by window pooling alone; pre-cache whitening and de-rotation are mathematically mandatory.
-4. **High-Power Cross-Company Architectural Generalization ($n=30$):**
-   HALO reaches $\mathbf{90.00\% \pm 10.92\%}$ composite recall on Alibaba `Qwen3.5-0.8B` and $\mathbf{66.67\% \pm 17.16\%}$ on Meta `Llama-3.2-1B` (retaining $100\%$ of Llama's uncompressed capacity). On SmolLM2, HALO achieves $\mathbf{83.33\%}$ on S-NIAH (outperforming SnapKV's $58.33\%$).
+4. **High-Power Cross-Company Architectural Generalization ($n=30$ per task, $n=90$ composite):**
+   HALO reaches $\mathbf{100.0\% \pm 0.0\%}$ composite recall on Alibaba `Qwen3.5-0.8B` (matching full attention while SnapKV scores $58.89\%$ and collapses on UUID needles) and delivers $\mathbf{76.67\% \pm 8.79\%}$ composite recall on Meta `Llama-3.2-1B` (matching and slightly exceeding uncompressed Softmax). On SmolLM2, HALO reaches $\mathbf{60.00\% \pm 10.18\%}$ composite recall and dominates SnapKV on multi-segment UUID needles ($56.67\%$ vs. $26.67\%$, a $2.12\times$ gain).
 5. **Memory-Bounded $O(1)$ Scaling:**
    At $32\text{k}$ tokens, HALO compresses KV-cache memory by $\mathbf{25.6\times}$ ($3.75\text{ MiB}$ vs. $96.0\text{ MiB}$) while keeping salience selection overhead to only $51.42\text{ ms}$ and maintaining steady $22.1\text{ tok/s}$ autoregressive decoding.
