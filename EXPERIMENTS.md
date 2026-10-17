@@ -1408,7 +1408,7 @@ Evaluates the cognitive memory consolidation pipeline:
 
 ---
 
-### EXP-26: CDCA-V3 Ablation Suite
+### EXP-26: HALO Attention (`CDCA-V3`) Ablation Suite
 
 - **Date:** 2026-10-17
 - **Compute:** Modal Serverless GPU (NVIDIA A10G, 24GB) — Runtime ~190s
@@ -1420,23 +1420,23 @@ Evaluates the cognitive memory consolidation pipeline:
   - Figure 72 (KV-Cache DRAM & Perplexity Scaling): [`results/exp26_cdca_v3_ablation/fig72_memory_and_ppl_scaling.png`](results/exp26_cdca_v3_ablation/fig72_memory_and_ppl_scaling.png)
 
 #### Motivation & Architectural Hypothesis
-In EXP-21, CDCA-V2 achieved $72.2\%$ NIAH retrieval but failed on long haystacks ($16\text{k}, 32\text{k}$) at $90\%$ depth due to binary keyword beacon signals and CPU string decoding that caused tie-breaking truncation (`torch.topk` truncating at index 1024). EXP-26 evaluates **CDCA-V3**, which eliminates all hardcoded keyword lists (`ALERT_KEYWORDS`) and CPU tokenizer string decoding, operating 100% on internal tensors inside `forward()` via:
-1. **Observation-Window Query Attention Mass:** Extracts calibrated query attention distribution across historical keys $s_{\tau}^{\text{td}} = \sum_{t \in \text{obs}} \text{Softmax}(Q_{\text{obs}} K_{\text{hist}}^\top / \sqrt{d})$.
-2. **Continuous Bidirectional 1D Exponential Diffusion ($\kappa = 16$):** Convolves attention mass symmetrically across $\pm 16$ adjacent tokens, producing a strictly continuous salience landscape that captures entire clauses surrounding payload entities without flat tie-breaking plateaus.
-3. **Multi-Baseline Comparison:** Evaluates under exact parameter parity against Original Softmax, StreamingLLM ($W=1024 + 4$ sinks), and $\text{H}_2\text{O}$ Heavy-Hitter Eviction ($W=1024 + 1024$).
+In EXP-21, `HALO-V2` (`CDCA-V2`) achieved $72.2\%$ NIAH retrieval but failed on long haystacks ($16\text{k}, 32\text{k}$) at $90\%$ depth due to binary keyword beacon signals and CPU string decoding that caused tie-breaking truncation (`torch.topk` truncating at index 1024). EXP-26 evaluates **HALO** (**H**ybrid **A**ttention with **L**andmark **O**bservation-diffusion, `CDCA-V3`), which eliminates all hardcoded keyword lists (`ALERT_KEYWORDS`) and CPU tokenizer string decoding, operating 100% on internal tensors inside `forward()` via:
+1. **PRISM Phase-Rectified & Rotary Observation-Window Alignment:** Extracts calibrated query attention distribution across historical keys $s_{\tau}^{\text{td}}$ using both PRISM de-rotated keys (`PreCacheTranslationLayer`) and native RoPE keys, modulated by bottom-up geometric surprise ($s_{\tau}^{\text{bu}}$).
+2. **Exponential Salience Halo ($\kappa = 16$):** Convolves combined salience symmetrically across $\pm 16$ adjacent tokens, casting a continuous exponential halo around salient tokens that captures entire clauses surrounding payload entities without flat tie-breaking plateaus.
+3. **Multi-Baseline Comparison:** Evaluates under exact parameter parity against Original Softmax, StreamingLLM ($W=1024 + 4$ sinks), and Causal $\text{H}_2\text{O}$ Heavy-Hitter Eviction ($W=1024 + 1024$).
 
 #### Quantitative Results Table (NVIDIA A10G Cloud GPU)
 
-| Benchmark Metric | Original Softmax (Baseline) | StreamingLLM ($W=1024+4$) | Causal $\text{H}_2\text{O}$ Eviction ($W=1024+1024$) | **CDCA-V3 (Ours)** | Advantage / Takeaway |
+| Benchmark Metric | Original Softmax (Baseline) | StreamingLLM ($W=1024+4$) | Causal $\text{H}_2\text{O}$ Eviction ($W=1024+1024$) | **HALO (`CDCA-V3`, Ours)** | Advantage / Takeaway |
 | :--- | :---: | :---: | :---: | :---: | :--- |
 | **18-Trial NIAH Grid ($1\text{k} \to 32\text{k}$)** | **$18/18$ ($100.0\%$)** | $6/18$ ($33.3\%$) | $8/18$ ($44.4\%$) | **$18/18$ ($100.0\%$)** | **Flawless $100\%$ retrieval without keywords** |
 | - $T = 1,024$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $3/3$ ($100\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** | Exact local window binding |
 | - $T = 2,048$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $3/3$ ($100\%$) | **$3/3$ ($100\%$)** | All history retained in landmark cache |
-| - $T = 4,096$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $1/3$ ($33.3\%$) | **$3/3$ ($100\%$)** | Diffusion preserves clause context |
+| - $T = 4,096$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $1/3$ ($33.3\%$) | **$3/3$ ($100\%$)** | Salience halo preserves clause context |
 | - $T = 8,192$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $1/3$ ($33.3\%$) | $1/3$ ($33.3\%$) | **$3/3$ ($100\%$)** | Zero tie-breaking truncation |
 | - $T = 16,384$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0.0\%$) | $0/3$ ($0.0\%$) | **$3/3$ ($100\%$)** | Rescues deep positions (vs EXP-21 fail) |
 | - $T = 32,768$ (Depths $10\%, 50\%, 90\%$) | $3/3$ ($100\%$) | $0/3$ ($0.0\%$) | $0/3$ ($0.0\%$) | **$3/3$ ($100\%$)** | Perfect retrieval at 32k context |
-| **Retroactive Framing ($32\text{k}$, Depth $10\%$)** | **PASS** | FAIL (`789`) | FAIL (`742`) | **PASS** (`74921`) | Backward diffusion recovers payload |
+| **Retroactive Framing ($32\text{k}$, Depth $10\%$)** | **PASS** | FAIL (`789`) | FAIL (`742`) | **PASS** (`74921`) | Backward halo recovers payload |
 | **Unseen Arbitrary UUID Needle ($8\text{k}$)** | **PASS** | FAIL | FAIL | **PASS** (`X9F-482-Q7B`) | Zero keyword leakage |
 | **Unseen Arbitrary UUID Needle ($16\text{k}$)** | **PASS** | FAIL | FAIL | **PASS** (`X9F-482-Q7B`) | Zero keyword leakage |
 | **Multi-Needle Synthesis ($16\text{k}$, 3 Codes)** | **PASS** ($3/3$) | FAIL ($0/3$) | FAIL ($0/3$) | **PASS** ($3/3$ Recalled: `9182`, `3746`, `5501`) | Multiple clauses preserved in cache |
@@ -1448,15 +1448,15 @@ In EXP-21, CDCA-V2 achieved $72.2\%$ NIAH retrieval but failed on long haystacks
 
 #### Key Scientific Takeaways
 1. **Elimination of Target Leakage & Truncation:**
-   By replacing heuristic string keywords with observation-window query attention mass convolved with continuous 1D exponential diffusion ($\kappa = 16$), CDCA-V3 achieves **$18/18$ ($100.0\%$) NIAH retrieval**, completely resolving the deep-position truncation failures of EXP-21 without any lexical heuristics.
+   By replacing heuristic string keywords with PRISM-rectified observation-window query attention mass convolved with the continuous 1D exponential salience halo ($\kappa = 16$), **HALO** (`CDCA-V3`) achieves **$18/18$ ($100.0\%$) NIAH retrieval**, completely resolving the deep-position truncation failures of EXP-21 without any lexical heuristics.
 2. **True Generalization to Arbitrary Alphanumeric Payloads:**
-   CDCA-V3 perfectly retrieves the unseen random alphanumeric UUID identifier (`"X9F-482-Q7B"`) at both $8\text{k}$ and $16\text{k}$ contexts, confirming that the attention gate operates on genuine semantic alignment rather than memorized substrings.
+   HALO perfectly retrieves the unseen random alphanumeric UUID identifier (`"X9F-482-Q7B"`) at both $8\text{k}$ and $16\text{k}$ contexts, confirming that the attention gate operates on genuine semantic alignment rather than memorized substrings.
 3. **Multi-Needle Capacity in Bounded Budget:**
-   When 3 distinct needles (Alpha `9182`, Beta `3746`, Gamma `5501`) are inserted at disparate depths ($15\%$, $50\%$, $85\%$), the continuous diffusion profile preserves all three clauses within the $1,024$-landmark budget, enabling successful multi-needle synthesis (**$3/3$, $100.0\%$ recall**), whereas both true causal $\text{H}_2\text{O}$ and StreamingLLM fail completely ($0/3$, $0.0\%$).
+   When 3 distinct needles (Alpha `9182`, Beta `3746`, Gamma `5501`) are inserted at disparate depths ($15\%$, $50\%$, $85\%$), the continuous salience halo preserves all three clauses within the $1,024$-landmark budget, enabling successful multi-needle synthesis (**$3/3$, $100.0\%$ recall**), whereas both true causal $\text{H}_2\text{O}$ and StreamingLLM fail completely ($0/3$, $0.0\%$).
 4. **Massive Serving Concurrency Scaling:**
-   At $32\text{k}$ context, CDCA-V3 clamps KV-cache DRAM from $384.0\text{ MiB} \to 24.0\text{ MiB}$ ($16.0\times$ reduction). At Qwen3.5's native $262,144$ token window, KV-cache drops from $3.00\text{ GiB} \to 24.0\text{ MiB}$ ($128.0\times$ reduction), allowing a single 24GB GPU to serve over $700$ concurrent $262\text{k}$ streams.
+   At $32\text{k}$ context, HALO clamps KV-cache DRAM from $384.0\text{ MiB} \to 24.0\text{ MiB}$ ($16.0\times$ reduction). At Qwen3.5's native $262,144$ token window, KV-cache drops from $3.00\text{ GiB} \to 24.0\text{ MiB}$ ($128.0\times$ reduction), allowing a single 24GB GPU to serve over $700$ concurrent $262\text{k}$ streams.
 5. **Causal-Prefix Eviction Vulnerability (Why True $\text{H}_2\text{O}$ Fails):**
-   In true causal $\text{H}_2\text{O}$ eviction, tokens are scored causally during prefill before the prompt's question arrives. Because prefix queries attend to initial attention sinks and local context rather than unqueried payload needles, $\text{H}_2\text{O}$ prematurely evicts early and middle needles, collapsing to $44.4\%$ overall recall ($0/3$ at 16k and 32k) and $0/3$ on multi-needle retrieval. In contrast, CDCA-V3 combines top-down observation-window query alignment with stationary de-rotated keys and bottom-up geometric surprise, preserving all relevant entity clauses.
+   In true causal $\text{H}_2\text{O}$ eviction, tokens are scored causally during prefill before the prompt's question arrives. Because prefix queries attend to initial attention sinks and local context rather than unqueried payload needles, $\text{H}_2\text{O}$ prematurely evicts early and middle needles, collapsing to $44.4\%$ overall recall ($0/3$ at 16k and 32k) and $0/3$ on multi-needle retrieval. In contrast, HALO combines top-down observation-window query alignment with stationary PRISM de-rotated keys, bottom-up geometric surprise, and a $\pm 16$-token exponential halo, preserving all relevant entity clauses.
 
 
 

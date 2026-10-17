@@ -68,8 +68,8 @@ def generate_exp26_plots_cloud(metrics: dict) -> dict[str, bytes]:
     methods = [
         "Original Softmax\n(Full Cache)",
         "StreamingLLM\n(4 sinks + W=1024)",
-        "H2O\n(W=1024 + 1024 HH)",
-        "CDCA-V3 (Ours)\n(Tensor Salience + Diffusion)"
+        "Causal H2O\n(W=1024 + 1024 HH)",
+        "HALO (Ours)\n(PRISM + Salience Halo)"
     ]
     rates = [
         metrics["niah_grid_18_trials"]["original_softmax"]["success_rate_pct"],
@@ -101,7 +101,7 @@ def generate_exp26_plots_cloud(metrics: dict) -> dict[str, bytes]:
 
     # Bottom 4 subplots: Individual Method Heatmaps
     method_keys = ["original_softmax", "streaming_llm", "h2o", "cdca_v3"]
-    method_titles = ["Original Softmax", "StreamingLLM", "H2O Eviction", "CDCA-V3 (Zero Keywords)"]
+    method_titles = ["Original Softmax", "StreamingLLM", "Causal H2O Eviction", "HALO (Zero Keywords)"]
     cmap = plt.cm.colors.ListedColormap(["#e74c3c", "#27ae60"])
 
     for idx, (m_key, m_title) in enumerate(zip(method_keys, method_titles)):
@@ -140,7 +140,7 @@ def generate_exp26_plots_cloud(metrics: dict) -> dict[str, bytes]:
     plots["fig70_cdca_v3_ablation_niah.png"] = buf.getvalue()
 
     # -------------------------------------------------------------
-    # Figure 71: Multi-Method Stress Tests (CDCA-V3 vs H2O vs StreamingLLM)
+    # Figure 71: Multi-Method Stress Tests (HALO vs H2O vs StreamingLLM)
     # -------------------------------------------------------------
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.2), dpi=300)
 
@@ -162,7 +162,7 @@ def generate_exp26_plots_cloud(metrics: dict) -> dict[str, bytes]:
 
     rects1 = ax1.bar(x - width, s_scores, width, label="StreamingLLM (W=1024+4)", color="#e74c3c", edgecolor="black")
     rects2 = ax1.bar(x, h_scores, width, label="Causal H2O (W=1024+1024)", color="#f39c12", edgecolor="black")
-    rects3 = ax1.bar(x + width, c_scores, width, label="CDCA-V3 (Ours)", color="#27ae60", edgecolor="black")
+    rects3 = ax1.bar(x + width, c_scores, width, label="HALO (Ours)", color="#27ae60", edgecolor="black")
 
     ax1.set_title("Stress Tests: Generalization & Zero-Leakage Retrieval", fontsize=12, fontweight="bold")
     ax1.set_ylabel("Retrieval Success (%)", fontsize=11, fontweight="bold")
@@ -183,7 +183,7 @@ def generate_exp26_plots_cloud(metrics: dict) -> dict[str, bytes]:
     mmlu_acc = metrics["academic_benchmarks"]["mmlu_expanded_25q_pct"]
     categories = ["Expanded MMLU (25 Questions)\nZero-Degradation Reasoning"]
     bars2 = ax2.bar(categories, [mmlu_acc], color="#2980b9", width=0.35, edgecolor="black", linewidth=1.2)
-    ax2.set_title("CDCA-V3 Multi-Domain Academic Reasoning", fontsize=12, fontweight="bold")
+    ax2.set_title("HALO Multi-Domain Academic Reasoning", fontsize=12, fontweight="bold")
     ax2.set_ylabel("Accuracy (%)", fontsize=11, fontweight="bold")
     ax2.set_ylim(0, 115)
     ax2.grid(True, axis="y", linestyle="--", alpha=0.6)
@@ -206,11 +206,11 @@ def generate_exp26_plots_cloud(metrics: dict) -> dict[str, bytes]:
     T_range = np.array([1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144])
     # Exact bytes per token = 6 layers * 2 * 2 heads * 256 d * 2 bytes = 12,288 bytes = 12.0 KiB
     mem_softmax_mib = (T_range * 12288) / (1024 * 1024)
-    # CDCA-V3: min(T, 2048) tokens * 12,288 bytes
+    # HALO: min(T, 2048) tokens * 12,288 bytes
     mem_cdca_mib = np.minimum(T_range, 2048) * 12288 / (1024 * 1024)
 
     ax_mem.plot(T_range, mem_softmax_mib, "o--", color="#e74c3c", linewidth=2.2, label="Full Softmax (12.0 KiB/token)")
-    ax_mem.plot(T_range, mem_cdca_mib, "s-", color="#27ae60", linewidth=2.5, label="CDCA-V3 (Fixed 24.0 MiB at T >= 2048)")
+    ax_mem.plot(T_range, mem_cdca_mib, "s-", color="#27ae60", linewidth=2.5, label="HALO (Fixed 24.0 MiB at T >= 2048)")
     ax_mem.set_xscale("log", base=2)
     ax_mem.set_yscale("log")
     ax_mem.set_xticks([1024, 4096, 16384, 32768, 65536, 262144])
@@ -235,7 +235,7 @@ def generate_exp26_plots_cloud(metrics: dict) -> dict[str, bytes]:
     ppl_y = [ppl_4k, ppl_8k]
 
     bars_ppl = ax_ppl.bar(ppl_x, ppl_y, color=["#3498db", "#9b59b6"], width=0.45, edgecolor="black", linewidth=1.2)
-    ax_ppl.set_title("CDCA-V3 Long-Context Perplexity Stability", fontsize=12, fontweight="bold")
+    ax_ppl.set_title("HALO Long-Context Perplexity Stability", fontsize=12, fontweight="bold")
     ax_ppl.set_ylabel("Perplexity (PPL)", fontsize=11, fontweight="bold")
     ax_ppl.set_ylim(0, max(ppl_y) * 1.35)
     ax_ppl.grid(True, axis="y", linestyle="--", alpha=0.6)
