@@ -1,0 +1,60 @@
+{
+  "model_id": "Qwen/Qwen3.5-0.8B-Base",
+  "train_steps": 150,
+  "train_time_sec": 26.52,
+  "final_loss": 4.6562,
+  "initial_loss": 15.5625,
+  "loss_history": [
+    15.5625,
+    16.25,
+    12.8125,
+    13.75,
+    12.875,
+    8.9375,
+    15.3125,
+    11.625,
+    5.3438,
+    8.9375,
+    14.375,
+    14.6875,
+    6.2188,
+    12.4375,
+    7.7188,
+    9.1875,
+    7.6562,
+    7.0625,
+    8.8125,
+    11.625,
+    3.4844,
+    10.25,
+    6.3438,
+    12.5625,
+    5.9375,
+    6.0312,
+    10.25,
+    6.0625,
+    5.1562,
+    6.4062
+  ],
+  "mmlu_arc_pct": 10.0,
+  "sample_generation": {
+    "prompt": "Question: What is the secret access code for Project Antigravity?\nAnswer:",
+    "generated_text": "The of of of of of of of of of of of of of of of of of of of of",
+    "gen_time_ms": 1276.33
+  },
+  "niah_results": {
+    "niah_T2048": {
+      "success": false,
+      "retrieved_text": "=555555555555"
+    },
+    "niah_T4096": {
+      "success": false,
+      "retrieved_text": "=5 =5 = = = = = = = = ="
+    }
+  },
+  "cache_memory": {
+    "qwen_nsal_state_kb": 432.0,
+    "softmax_kv_32k_kb": 402636.8,
+    "memory_reduction_factor": 932.0
+  }
+}
