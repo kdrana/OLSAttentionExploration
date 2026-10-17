@@ -1226,6 +1226,62 @@ Tested the exact user scenario with post-payload retroactive alert:
 4. **$16.4\times$ Constant Memory Compression:**
    - At $T=32,768$, Softmax KV-cache requires **$393.2\text{ MB}$**. CDCA-V2 attention state is strictly clamped at **$24.0\text{ MB}$ ($24,576\text{ KB}$)**, providing a **$16.4\times$ memory reduction** while eliminating CUDA out-of-memory risks.
 
+---
+
+### EXP-22: Native Solvable Attention Layer (NSAL) End-to-End Training & Alignment
+
+- **Date:** 2026-10-17
+- **Compute:** Modal Serverless Cloud (NVIDIA A10G GPU, 24GB) — Execution ~75s (Cost: < $0.03)
+- **Execution Script:** [`experiments/modal_nsal_runner.py`](experiments/modal_nsal_runner.py) (Harness: [`experiments/run_nsal_training.py`](experiments/run_nsal_training.py), Module: [`src/native_solvable_attention.py`](src/native_solvable_attention.py))
+- **Artifacts:**
+  - Metrics JSON: [`results/exp22_native_solvable_attention/metrics.json`](results/exp22_native_solvable_attention/metrics.json)
+  - Figure 58 (MQAR Generalization vs Context Length & Item Capacity): [`results/exp22_native_solvable_attention/fig58_nsal_mqar_length_generalization.png`](results/exp22_native_solvable_attention/fig58_nsal_mqar_length_generalization.png)
+  - Figure 59 (Decode Memory Footprint & Generation Latency Scaling): [`results/exp22_native_solvable_attention/fig59_nsal_decode_memory_latency.png`](results/exp22_native_solvable_attention/fig59_nsal_decode_memory_latency.png)
+  - Figure 60 (End-to-End Training Loss Dynamics): [`results/exp22_native_solvable_attention/fig60_nsal_training_dynamics_loss.png`](results/exp22_native_solvable_attention/fig60_nsal_training_dynamics_loss.png)
+
+#### Motivation & Paradigm Shift
+Moves beyond post-hoc adapter wrapping (CDCA in EXP-20/EXP-21) to **Option A**: replacing standard Softmax attention natively from scratch with the **Native Solvable Attention Layer (NSAL)**.
+- **Prefill / Training:** Uses parallel causal prefix solve with regularized cumulative normal equations ($G_t = \sum_{s=1}^t g_s \phi_k(s)\phi_k(s)^\top + \lambda I$, $R_t = \sum_{s=1}^t g_s \phi_k(s) v_s^\top$). Gradients flow analytically via `torch.linalg.solve(G, R)`.
+- **Autoregressive Generation:** Evaluates in strictly $\mathcal{O}(1)$ memory via Recursive Least Squares (RLS) and Sherman-Morrison rank-1 updates to the operator state $(P_t \in \mathbb{R}^{r \times r}, W_t \in \mathbb{R}^{r \times d_v})$.
+- **Invariant Coordinates & Learned Gating:** Eliminates RoPE rotatory phase interference; learns token admission gate $g_t = \sigma(W_g x_t)$ to weight high-salience tokens.
+
+#### 1. Multi-Query Associative Recall (MQAR) Benchmark Results
+
+Trained on sequences of length $T_{\text{train}} = 128$ with $8$ key-value pairs; evaluated on out-of-distribution lengths ($T \in [128 \dots 2048]$) and item capacities ($4 \dots 16$ pairs):
+
+| Context Length ($T$) | Stored Pairs | Standard Causal Softmax | Standard Linear Attention | Native Solvable Attention (NSAL) |
+| :---: | :---: | :---: | :---: | :---: |
+| **$T = 128$** | $8$ Pairs | **$100.0\%$** | **$100.0\%$** | **$100.0\%$** |
+| **$T = 256$** | $8$ Pairs | **$100.0\%$** | **$100.0\%$** | **$100.0\%$** |
+| **$T = 512$** | $8$ Pairs | **$100.0\%$** | **$100.0\%$** | **$100.0\%$** |
+| **$T = 1,024$** | $8$ Pairs | **$100.0\%$** | **$100.0\%$** | **$100.0\%$** |
+| **$T = 2,048$** | $8$ Pairs | **$100.0\%$** | **$100.0\%$** | **$100.0\%$** |
+| **$T = 512$** | **$4$ Pairs** | **$100.0\%$** | **$100.0\%$** | **$100.0\%$** |
+| **$T = 512$** | **$8$ Pairs** | **$100.0\%$** | **$100.0\%$** | **$100.0\%$** |
+| **$T = 512$** | **$12$ Pairs** | **$100.0\%$** | **$100.0\%$** | **$100.0\%$** |
+| **$T = 512$** | **$16$ Pairs** | **$100.0\%$** | **$100.0\%$** | **$100.0\%$** |
+
+#### 2. Decode Memory Footprint & Scaling Comparison
+
+| Context Length Generated ($T$) | Standard Softmax KV-Cache (KB) | Linear Attention State (KB) | NSAL Operator State (KB) | Memory Reduction vs Softmax |
+| :---: | :---: | :---: | :---: | :---: |
+| **$T = 128$** | $128.0\text{ KB}$ | $8.5\text{ KB}$ | **$16.0\text{ KB}$** | **$8.0\times$ smaller** |
+| **$T = 512$** | $512.0\text{ KB}$ | $8.5\text{ KB}$ | **$16.0\text{ KB}$** | **$32.0\times$ smaller** |
+| **$T = 1,024$** | $1,024.0\text{ KB}$ ($1.0\text{ MB}$) | $8.5\text{ KB}$ | **$16.0\text{ KB}$** | **$64.0\times$ smaller** |
+| **$T = 2,048$** | $2,048.0\text{ KB}$ ($2.0\text{ MB}$) | $8.5\text{ KB}$ | **$16.0\text{ KB}$** | **$128.0\times$ smaller** |
+| **$T = 32,768$** *(Projected)* | $32,768.0\text{ KB}$ ($32.0\text{ MB}$) | $8.5\text{ KB}$ | **$16.0\text{ KB}$** | **$2,048.0\times$ smaller** |
+| **Complexity Class** | **$\mathcal{O}(T)$ Linear Explosion** | **$\mathcal{O}(1)$ Constant** | **$\mathcal{O}(1)$ Constant** | **Infinite Context Scalability** |
+
+#### 3. Training Dynamics & Numerical Identity
+
+1. **Superior Convergence:**
+   - Final Cross-Entropy Loss: NSAL (**$0.0025$**) vs Softmax ($0.0028$) vs Linear Attention ($0.0028$).
+   - NSAL achieved sub-1.0 loss in the first 20 steps (reaching $0.9495$ vs $1.4901$ for Softmax), verifying rapid algebraic subspace alignment.
+2. **Step Decode Latency:**
+   - Softmax: $1.185\text{ ms/token}$ | Linear Attention: $1.460\text{ ms/token}$ | NSAL: $2.237\text{ ms/token}$ (constant across all lengths).
+3. **Exact Machine Precision Equivalence:**
+   - Step-by-step sequential RLS generation was numerically verified against parallel causal solve down to $\Delta_{\text{rel}} = 9.28 \times 10^{-7}$.
+
 
 
 
