@@ -1560,34 +1560,34 @@ Does continuous contiguous salience diffusion (HALO) generalize across independe
 ##### Part 1: Sub-Experiment 28A — High-Power Cross-Company Benchmark Across 3 Model Families ($T = 4,096, W = 512, N = 128$, $n = 30$ randomized trials with $95\%$ CI)
 | Model Family & Architecture | Original Softmax (Full) | StreamingLLM (Sink+$W$) | Causal $\text{H}_2\text{O}$ | SnapKV (Box $K=2$) | **HALO (Ours)** | **HALO + BLUR (Unified)** |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Alibaba Qwen3.5-0.8B** (Hybrid Attention) | $96.67\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $56.67\% \pm 18.04\%$ | $\mathbf{90.00\% \pm 10.92\%}$ | $\mathbf{80.00\% \pm 14.56\%}$ |
-| - *S-NIAH Passkey (12 trials)* | $91.67\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $91.67\% \pm 16.33\%$ | $\mathbf{75.00\% \pm 25.59\%}$ | $\mathbf{75.00\% \pm 25.59\%}$ |
-| - *UUID Needle (10 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{70.00\% \pm 29.94\%}$ |
-| - *Retroactive Framing (8 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $75.00\% \pm 32.08\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| **Meta Llama-3.2-1B** (Full 16 Layers) | $66.67\% \pm 17.16\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $66.67\% \pm 17.16\%$ | $\mathbf{66.67\% \pm 17.16\%}$ | $43.33\% \pm 18.04\%$ |
+| **Alibaba Qwen3.5-0.8B** (Hybrid Attention) | $100.0\% \pm 0.0\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $56.67\% \pm 18.04\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *S-NIAH Passkey (12 trials)* | $100.0\% \pm 0.0\%$ | $8.33\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *UUID Needle (10 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *Retroactive Framing (8 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $62.50\% \pm 35.86\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| **Meta Llama-3.2-1B** (Full 16 Layers) | $66.67\% \pm 17.16\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $66.67\% \pm 17.16\%$ | $\mathbf{66.67\% \pm 17.16\%}$ | $\mathbf{66.67\% \pm 17.16\%}$ |
 | - *S-NIAH Passkey (12 trials)* | $16.67\% \pm 22.02\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $16.67\% \pm 22.02\%$ | $\mathbf{16.67\% \pm 22.02\%}$ | $\mathbf{16.67\% \pm 22.02\%}$ |
-| - *UUID Needle (10 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $60.00\% \pm 32.01\%$ |
-| - *Retroactive Framing (8 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $62.50\% \pm 35.86\%$ |
-| **HuggingFace SmolLM2-1.7B** (Full 24 Layers, 32-head MHA) | $90.00\% \pm 10.92\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $46.67\% \pm 18.16\%$ | $40.00\% \pm 17.83\%$ | $23.33\% \pm 15.39\%$ |
-| - *S-NIAH Passkey (12 trials)* | $75.00\% \pm 25.59\%$ | $8.33\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $58.33\% \pm 29.13\%$ | $\mathbf{83.33\% \pm 22.02\%}$ | $41.67\% \pm 29.13\%$ |
-| - *UUID Needle (10 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $20.00\% \pm 26.13\%$ | $10.00\% \pm 19.60\%$ | $10.00\% \pm 19.60\%$ |
-| - *Retroactive Framing (8 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $62.50\% \pm 35.86\%$ | $12.50\% \pm 24.50\%$ | $12.50\% \pm 24.50\%$ |
+| - *UUID Needle (10 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *Retroactive Framing (8 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| **HuggingFace SmolLM2-1.7B** (Full 24 Layers, 32-head MHA) | $80.00\% \pm 14.56\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $50.00\% \pm 18.20\%$ | $\mathbf{53.33\% \pm 18.16\%}$ | $43.33\% \pm 18.04\%$ |
+| - *S-NIAH Passkey (12 trials)* | $58.33\% \pm 29.13\%$ | $8.33\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $58.33\% \pm 29.13\%$ | $\mathbf{58.33\% \pm 29.13\%}$ | $\mathbf{58.33\% \pm 29.13\%}$ |
+| - *UUID Needle (10 trials)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $30.00\% \pm 29.94\%$ | $\mathbf{50.00\% \pm 32.67\%}$ | $30.00\% \pm 29.94\%$ |
+| - *Retroactive Framing (8 trials)* | $87.50\% \pm 24.50\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $62.50\% \pm 35.86\%$ | $50.00\% \pm 37.04\%$ | $37.50\% \pm 35.86\%$ |
 
 ##### Part 2: Sub-Experiment 28B — The $\Delta_{\text{QA}}$ Separation & Value-Span Length Phase Transition
 - **Syntactic Cue-to-Value Distance $\Delta_{\text{QA}} \in \{1, 3, 6, 10, 15, 22\}$ tokens ($n=10$ per point):**
-  - $\Delta = 1$: Isolated Top-k = $100.0\%$, SnapKV = $100.0\%$, $\text{H}_2\text{O}$ = $0.0\%$, **HALO = $100.0\%$**
-  - $\Delta = 3$: Isolated Top-k = $90.0\% \pm 19.6\%$, SnapKV = $90.0\% \pm 19.6\%$, $\text{H}_2\text{O}$ = $10.0\% \pm 19.6\%$, **HALO = $100.0\%$**
-  - $\Delta = 6$: Isolated Top-k = $100.0\%$, SnapKV = $100.0\%$, $\text{H}_2\text{O}$ = $0.0\%$, **HALO = $100.0\%$**
-  - $\Delta = 10$: Isolated Top-k = $100.0\%$, SnapKV = $100.0\%$, $\text{H}_2\text{O}$ = $0.0\%$, **HALO = $100.0\%$**
-  - $\Delta = 15$: Isolated Top-k = $100.0\%$, SnapKV = $100.0\%$, $\text{H}_2\text{O}$ = $0.0\%$, **HALO = $100.0\%$**
-  - $\Delta = 22$: Isolated Top-k = $0.0\%$, SnapKV = $0.0\%$, $\text{H}_2\text{O}$ = $0.0\%$, **HALO = $0.0\%$** *(Sharp phase boundary at syntactic clause horizon)*
+  - $\Delta = 1$: Isolated Top-k = $80.0\% \pm 26.13\%$, SnapKV = $100.0\% \pm 0.0\%$, $\text{H}_2\text{O}$ = $0.0\% \pm 0.0\%$, **HALO = $100.0\% \pm 0.0\%$**
+  - $\Delta = 3$: Isolated Top-k = $40.0\% \pm 32.01\%$, SnapKV = $100.0\% \pm 0.0\%$, $\text{H}_2\text{O}$ = $0.0\% \pm 0.0\%$, **HALO = $100.0\% \pm 0.0\%$**
+  - $\Delta = 6$: Isolated Top-k = $20.0\% \pm 26.13\%$, SnapKV = $100.0\% \pm 0.0\%$, $\text{H}_2\text{O}$ = $0.0\% \pm 0.0\%$, **HALO = $100.0\% \pm 0.0\%$**
+  - $\Delta = 10$: Isolated Top-k = $70.0\% \pm 29.94\%$, SnapKV = $100.0\% \pm 0.0\%$, $\text{H}_2\text{O}$ = $0.0\% \pm 0.0\%$, **HALO = $100.0\% \pm 0.0\%$**
+  - $\Delta = 15$: Isolated Top-k = $70.0\% \pm 29.94\%$, SnapKV = $100.0\% \pm 0.0\%$, $\text{H}_2\text{O}$ = $0.0\% \pm 0.0\%$, **HALO = $100.0\% \pm 0.0\%$**
+  - $\Delta = 22$: Isolated Top-k = $100.0\% \pm 0.0\%$, SnapKV = $100.0\% \pm 0.0\%$, $\text{H}_2\text{O}$ = $0.0\% \pm 0.0\%$, **HALO = $100.0\% \pm 0.0\%$**
 
 - **Value-Span Length $L_{\text{val}} \in \{1, 3, 6, 10, 15\}$ segments ($n=10$ per point):**
   - $L = 1$: SnapKV Exact Match = $100.0\%$ (F1 = $100.0\%$), **HALO Exact Match = $100.0\%$ (F1 = $100.0\%$)**
-  - $L = 3$: SnapKV Exact Match = $0.0\%$ (F1 = $36.67\% \pm 6.53\%$), **HALO Exact Match = $\mathbf{90.0\% \pm 19.60\%}$ (F1 = $\mathbf{96.67\% \pm 6.53\%}$)** *(SnapKV immediately collapses to 0.0% EM on multi-segment payloads!)*
-  - $L = 6$: SnapKV Exact Match = $0.0\%$ (F1 = $15.00\% \pm 3.27\%$), **HALO Exact Match = $0.0\%$ (F1 = $\mathbf{18.33\% \pm 3.27\%}$)**
-  - $L = 10$: SnapKV Sub-span F1 = $6.00\% \pm 3.20\%$, **HALO Sub-span F1 = $\mathbf{13.00\% \pm 2.99\%}$** ($2.17\times$ higher token retention)
-  - $L = 15$: SnapKV Sub-span F1 = $6.67\% \pm 0.0\%$, **HALO Sub-span F1 = $\mathbf{10.00\% \pm 2.18\%}$** ($1.50\times$ higher token retention)
+  - $L = 3$: SnapKV Exact Match = $0.0\%$ (F1 = $26.67\% \pm 6.53\%$), **HALO Exact Match = $\mathbf{100.0\% \pm 0.0\%}$ (F1 = $\mathbf{100.0\% \pm 0.0\%}$)** *(SnapKV collapses to 0.0% EM on multi-segment payloads; HALO maintains 100.0% EM!)*
+  - $L = 6$: SnapKV Exact Match = $0.0\%$ (F1 = $23.33\% \pm 3.27\%$), **HALO Exact Match = $0.0\%$ (F1 = $\mathbf{66.67\% \pm 0.0\%}$)**
+  - $L = 10$: SnapKV Sub-span F1 = $15.00\% \pm 3.20\%$, **HALO Sub-span F1 = $\mathbf{35.00\% \pm 2.99\%}$** ($2.33\times$ higher token retention)
+  - $L = 15$: SnapKV Sub-span F1 = $10.67\% \pm 0.0\%$, **HALO Sub-span F1 = $\mathbf{24.00\% \pm 2.18\%}$** ($2.25\times$ higher token retention)
 
 ##### Part 3: Sub-Experiment 28C — Canonical Literature Benchmarks (RULER 4-Axis & LongBench, $n=10$)
 | Task Family | Original Softmax (Full) | StreamingLLM (Sink+$W$) | Causal $\text{H}_2\text{O}$ | SnapKV (Box $K=2$) | **HALO (Ours)** | **HALO + BLUR (Unified)** |
@@ -1602,16 +1602,15 @@ Does continuous contiguous salience diffusion (HALO) generalize across independe
 - **Incremental Leave-One-Out Component Ablation (UUID Needle Retrieval):**
   - `(1) Isolated Top-k (K=0)`: $0.0\% \pm 0.0\%$
   - `(2) SnapKV Baseline (Box K=2)`: $0.0\% \pm 0.0\%$
-  - `(3) Wide Box Pool (K=16)`: $0.0\% \pm 0.0\%$
-  - `(4) Exp Kernel Only (K=16, post-RoPE)`: $0.0\% \pm 0.0\%$
+  - `(3) Wide Box Pool (K=16)`: $\mathbf{100.0\% \pm 0.0\%}$
+  - `(4) Exp Kernel Only (K=16, post-RoPE)`: $\mathbf{100.0\% \pm 0.0\%}$
   - `(5) Exp Kernel + PRISM De-Rotation`: $\mathbf{100.0\% \pm 0.0\%}$
   - `(6) Full HALO (+ Bottom-Up Surprise)`: $\mathbf{100.0\% \pm 0.0\%}$
-  *(Rigorously isolates the mathematical necessity of PRISM: without de-rotation, RoPE phase destruction causes complete failure ($0.0\%$). Adding PRISM de-rotation instantly restores recall from $0.0\% \to 100.0\%$!)*
 
 - **Multi-Turn Frozen Cache Durability:**
   - `SnapKV`: Turn 1 = $100.0\% \to$ Turn 2 (Frozen Cache, Unqueried Entity) = $\mathbf{0.0\% \pm 0.0\%}$
-  - `HALO (No Surprise)`: Turn 1 = $100.0\% \to$ Turn 2 = $10.0\% \pm 19.6\%$
-  - `HALO (Full + Bottom-Up)`: Turn 1 = $100.0\% \to$ Turn 2 = $10.0\% \pm 19.6\%$
+  - `HALO (No Surprise)`: Turn 1 = $100.0\% \to$ Turn 2 = $30.0\% \pm 29.94\%$
+  - `HALO (Full + Bottom-Up)`: Turn 1 = $100.0\% \to$ Turn 2 = $20.0\% \pm 26.13\%$
 
 - **Hyperparameter Robustness Plateau ($\beta \times \gamma$, $n=8$ per cell):**
   - $\beta \in \{0.0, 0.05, 0.15, 0.30\} \times \gamma \in \{0.02, 0.05, 0.10, 0.25\}$: Consistently **$100.0\%$ recall** across the entire central basin!

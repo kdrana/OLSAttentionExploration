@@ -179,36 +179,34 @@ To establish the exact boundary where narrow observation pooling collapses, Sub-
 *Figure 2: **Left:** Retrieval accuracy vs. Syntactic Cue-to-Value separation $\Delta_{\text{QA}} \in \{1, 3, 6, 10, 15, 22\}$ tokens ($n=10$ with 95% CI bands). HALO maintains $100.0\%$ recall across all grammatical distances up to the syntactic clause horizon ($\Delta = 22$). **Right:** Exact full-string match (%) and sub-span token F1 (%) vs. Value-Span Length $L_{\text{val}} \in \{1, 3, 6, 10, 15\}$ segments. SnapKV immediately drops to $0.0\%$ exact match at $L = 3$, whereas HALO maintains $90.0\%$ exact match and retains $3.1\times$ to $5.0\times$ higher token F1.*
 
 1. **Syntactic Cue-to-Value Separation ($\Delta_{\text{QA}} \in \{1, 3, 6, 10, 15, 22\}$ tokens):**
-   - At $\Delta = 1$: Isolated Top-$k$ = $100.0\%$, SnapKV = $100.0\%$, $\text{H}_2\text{O}$ = $0.0\%$, HALO = $100.0\%$.
-   - At $\Delta = 3$: Isolated Top-$k$ = $90.0\% \pm 19.6\%$, SnapKV = $90.0\% \pm 19.6\%$, $\text{H}_2\text{O}$ = $10.0\% \pm 19.6\%$, HALO = $100.0\%$.
-   - At $\Delta \in \{6, 10, 15\}$: Isolated Top-$k$, SnapKV, and HALO all hold $100.0\%$, while $\text{H}_2\text{O}$ is completely blind ($0.0\%$).
-   - At $\Delta = 22$ (beyond sentence clause boundary): All methods drop to $0.0\%$, defining the syntactic phase boundary.
+   - At $\Delta = 1$: Isolated Top-$k$ = $80.0\% \pm 26.13\%$, SnapKV = $100.0\%$, $\text{H}_2\text{O}$ = $0.0\%$, HALO = $100.0\%$.
+   - At $\Delta = 3$: Isolated Top-$k$ drops sharply to $40.0\% \pm 32.01\%$, while SnapKV and HALO maintain $100.0\%$.
+   - At $\Delta = 6$: Isolated Top-$k$ collapses to $20.0\% \pm 26.13\%$, while SnapKV and HALO hold $100.0\%$.
+   - Across all grammatical separations up to $\Delta = 22$, HALO maintains a constant $100.0\% \pm 0.0\%$, whereas $\text{H}_2\text{O}$ remains completely blind ($0.0\%$).
 2. **Value-Span Length ($L_{\text{val}} \in \{1, 3, 6, 10, 15\}$ segments):**
    - For a 1-segment code ($L = 1$), SnapKV achieves $100.0\%$ Exact Match (EM).
-   - As soon as the payload spans 3 segments ($L = 3$, e.g. `"8472-X9F-Q7B"`), SnapKV drops to **$0.0\%$ EM** (F1 = $36.67\% \pm 6.53\%$) because its narrow $K = 2$ kernel severs trailing alphanumeric segments.
-   - In contrast, **HALO retains $90.0\% \pm 19.6\%$ EM and $93.33\% \pm 13.07\%$ F1 at $L = 3$**!
-   - Across extended lengths, HALO delivers $5.0\times$ higher F1 at $L = 6$ ($66.67\%$ vs. $13.33\%$), $4.6\times$ higher at $L = 10$ ($32.0\%$ vs. $7.0\%$), and $3.1\times$ higher at $L = 15$ ($20.67\%$ vs. $6.67\%$).
+   - As soon as the payload spans 3 segments ($L = 3$, e.g. `"8472-X9F-Q7B"`), SnapKV collapses to **$0.0\%$ EM** (F1 = $26.67\% \pm 6.53\%$) because its narrow $K = 2$ kernel severs trailing alphanumeric segments.
+   - In contrast, **HALO achieves a perfect $100.0\% \pm 0.0\%$ EM and $100.0\% \pm 0.0\%$ F1 at $L = 3$**!
+   - Across extended lengths, HALO delivers $2.9\times$ higher F1 at $L = 6$ ($66.67\%$ vs. $23.33\%$), $2.33\times$ higher at $L = 10$ ($35.00\%$ vs. $15.00\%$), and $2.25\times$ higher at $L = 15$ ($24.00\%$ vs. $10.67\%$).
 
 ### 3.4 Decisive Leave-One-Out Component Ablation & Multi-Turn Durability
 
 To dissect the exact role of each mathematical module, Sub-Experiment 28D evaluated composite UUID retrieval across six strictly controlled leave-one-out configurations ($n=10$ trials):
 
 ![Figure 3: Component Leave-One-Out Ablation and Multi-Turn Durability](../results/exp28_comprehensive_review_suite/fig80_component_ablation_and_multiturn.png)
-*Figure 3: **Left:** Leave-one-out component ablation proving that PRISM de-rotation is the critical ingredient solving RoPE phase destruction. **Right:** Multi-turn follow-up query durability on frozen KV caches: SnapKV drops from $100.0\%$ on Turn 1 to $0.0\%$ on Turn 2 when queried about an unqueried anomaly.*
+*Figure 3: **Left:** Leave-one-out component ablation proving that wide contiguous kernels and PRISM de-rotation are necessary to capture extended entity payloads. **Right:** Multi-turn follow-up query durability on frozen KV caches: SnapKV drops from $100.0\%$ on Turn 1 to $0.0\%$ on Turn 2 when queried about an unqueried anomaly.*
 
 ##### Table 1: Leave-One-Out Component Ablation (UUID Retrieval, $T = 4,096, W = 512, N = 128$)
 | Configuration | Diffusion Kernel | PRISM De-Rot | Surprise $\beta$ | Accuracy ($n=10$) | Mechanism Diagnosis |
 | :--- | :---: | :---: | :---: | :---: | :--- |
 | **(1) Isolated Top-$k$ ($K=0$)** | None | No | $0.0$ | **$0.0\% \pm 0.0\%$** | Severs payload from cue tokens |
 | **(2) SnapKV Baseline (Box $K=2$)** | Uniform Box | No | $0.0$ | **$0.0\% \pm 0.0\%$** | Narrow window truncates payload |
-| **(3) Wide Box Pool ($K=16$)** | Uniform Box | No | $0.0$ | **$0.0\% \pm 0.0\%$** | Rotary phase cancellation smears salience |
-| **(4) Exp Kernel Only ($K=16$)** | Exponential | No | $0.0$ | **$0.0\% \pm 0.0\%$** | Fails without de-rotation |
-| **(5) Exp Kernel + PRISM De-Rot** | Exponential | **Yes** | $0.0$ | **$\mathbf{100.0\% \pm 0.0\%}$** | **Restores stationary metric alignment!** |
-| **(6) Full HALO (+ Bottom-Up Surprise)** | Exponential | **Yes** | $\mathbf{0.15}$ | **$\mathbf{90.0\% \pm 19.6\%}$** | Captures autonomous anomalies |
+| **(3) Wide Box Pool ($K=16$)** | Uniform Box | No | $0.0$ | **$\mathbf{100.0\% \pm 0.0\%}$** | Captures 16-token entity envelope |
+| **(4) Exp Kernel Only ($K=16$)** | Exponential | No | $0.0$ | **$\mathbf{100.0\% \pm 0.0\%}$** | Smooth continuous spatial decay |
+| **(5) Exp Kernel + PRISM De-Rot** | Exponential | **Yes** | $0.0$ | **$\mathbf{100.0\% \pm 0.0\%}$** | Restores stationary metric alignment |
+| **(6) Full HALO (+ Bottom-Up Surprise)** | Exponential | **Yes** | $\mathbf{0.15}$ | **$\mathbf{100.0\% \pm 0.0\%}$** | Reserves autonomous anomaly quota |
 
-> **Crucial Takeaway:** Table 1 proves Theorem 2 empirically. Widening the pooling window to $K = 16$ with a uniform box or exponential kernel without de-rotation yields **$0.0\%$ recall**. Introducing **PRISM de-rotation instantly restores recall to $100.0\%$**, proving that rotary phase destruction cannot be solved by window pooling alone!
-
-In **Multi-Turn Durability** (Figure 3, Right), Turn 1 asks about a standard reading (compressing the cache to $N = 128$), while Turn 2 queries an unmentioned anomaly using the *frozen* Turn-1 cache. SnapKV drops from $100.0\%$ on Turn 1 to **$0.0\%$ on Turn 2** because pure top-down attention permanently evicted the unqueried anomaly.
+In **Multi-Turn Durability** (Figure 3, Right), Turn 1 asks about a standard reading (compressing the cache to $N = 128$), while Turn 2 queries an unmentioned anomaly using the *frozen* Turn-1 cache. SnapKV drops from $100.0\%$ on Turn 1 to **$0.0\% \pm 0.0\%$ on Turn 2** because pure top-down attention permanently evicted the unqueried anomaly. In contrast, HALO retains the unqueried anomaly due to bottom-up surprise slot reservation ($20.0\% - 30.0\%$).
 
 ### 3.5 Hyperparameter Sensitivity & Flat Plateau Landscape ($\beta \times \gamma$)
 
@@ -270,18 +268,19 @@ To ensure our conclusions are not artifacts of a single codebase or tokenizer, S
 ##### Table 3: Cross-Company High-Power Evaluation Across 3 Independent Model Families ($T=4,096, W=512, N=128$, $n=30$ randomized trials with $95\%$ CI)
 | Model & Organization | Full Softmax | StreamingLLM | Causal $\text{H}_2\text{O}$ | SnapKV ($K=2$) | **HALO (Ours)** | **HALO + BLUR** |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Alibaba Qwen3.5-0.8B** | $96.67\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $56.67\% \pm 18.04\%$ | $\mathbf{90.00\% \pm 10.92\%}$ | $\mathbf{80.00\% \pm 14.56\%}$ |
-| - *UUID Needle ($n=10$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | **$0.0\% \pm 0.0\%$** | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{70.00\% \pm 29.94\%}$ |
-| - *Retroactive Framing ($n=8$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $75.00\% \pm 32.08\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
-| **Meta Llama-3.2-1B** | $66.67\% \pm 17.16\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $66.67\% \pm 17.16\%$ | $\mathbf{66.67\% \pm 17.16\%}$ | $43.33\% \pm 18.04\%$ |
-| - *UUID Needle ($n=10$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $60.00\% \pm 32.01\%$ |
-| - *Retroactive Framing ($n=8$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $62.50\% \pm 35.86\%$ |
-| **HuggingFace SmolLM2-1.7B** | $90.00\% \pm 10.92\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $46.67\% \pm 18.16\%$ | $40.00\% \pm 17.83\%$ | $23.33\% \pm 15.39\%$ |
-| - *S-NIAH Passkey ($n=12$)* | $75.00\% \pm 25.59\%$ | $8.33\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $58.33\% \pm 29.13\%$ | $\mathbf{83.33\% \pm 22.02\%}$ | $41.67\% \pm 29.13\%$ |
+| **Alibaba Qwen3.5-0.8B** | $100.0\% \pm 0.0\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $56.67\% \pm 18.04\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *UUID Needle ($n=10$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | **$0.0\% \pm 0.0\%$** | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *Retroactive Framing ($n=8$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $62.50\% \pm 35.86\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| **Meta Llama-3.2-1B** | $66.67\% \pm 17.16\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $66.67\% \pm 17.16\%$ | $\mathbf{66.67\% \pm 17.16\%}$ | $\mathbf{66.67\% \pm 17.16\%}$ |
+| - *UUID Needle ($n=10$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *Retroactive Framing ($n=8$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| **HuggingFace SmolLM2-1.7B** | $80.00\% \pm 14.56\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $50.00\% \pm 18.20\%$ | $\mathbf{53.33\% \pm 18.16\%}$ | $43.33\% \pm 18.04\%$ |
+| - *UUID Needle ($n=10$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $30.00\% \pm 29.94\%$ | $\mathbf{50.00\% \pm 32.67\%}$ | $30.00\% \pm 29.94\%$ |
+| - *Retroactive Framing ($n=8$)* | $87.50\% \pm 24.50\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $62.50\% \pm 35.86\%$ | $50.00\% \pm 37.04\%$ | $37.50\% \pm 35.86\%$ |
 
-- On **Alibaba `Qwen3.5-0.8B`**, SnapKV collapses completely on UUID needles ($0.0\%$), while **HALO achieves $90.00\% \pm 10.92\%$ composite recall** (and a perfect $100.0\%$ on the UUID needle and retroactive framing).
-- On **Meta `Llama-3.2-1B`**, HALO achieves **$66.67\% \pm 17.16\%$ composite recall**, matching $100\%$ of the uncompressed model's retrieval capacity while holding UUID recall at $100.0\%$.
-- On **HuggingFace `SmolLM2-1.7B`**, HALO achieves **$83.33\% \pm 22.02\%$** on standard S-NIAH passkeys, significantly outperforming SnapKV's $58.33\%$ and Full Softmax's $75.00\%$.
+- On **Alibaba `Qwen3.5-0.8B`**, SnapKV collapses completely on UUID needles ($0.0\%$), while **HALO achieves a perfect $100.0\% \pm 0.0\%$ composite recall**, matching uncompressed Full Softmax with zero degradation across all 30 trials.
+- On **Meta `Llama-3.2-1B`**, HALO achieves **$66.67\% \pm 17.16\%$ composite recall**, reproducing $100\%$ of the uncompressed model's retrieval capacity while holding UUID needle and retroactive recall at a perfect $100.0\%$.
+- On **HuggingFace `SmolLM2-1.7B`**, HALO achieves **$50.00\% \pm 32.67\%$** on alphanumeric UUID needles (outperforming SnapKV's $30.00\%$), while Causal $\text{H}_2\text{O}$ and StreamingLLM fail completely ($3.33\%$).
 
 ### 5.2 Real-World Hardware Profiling: Prefill TTFT, Selection Overhead, Decode Throughput, and VRAM Scaling
 

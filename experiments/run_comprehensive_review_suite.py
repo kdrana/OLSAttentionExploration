@@ -84,39 +84,39 @@ def build_synthetic_context(
     depth: float,
     is_instruct: bool = False,
 ) -> Tuple[List[int], int]:
-    """Builds a haystack document of target_len with a needle inserted at depth."""
+    """Builds a haystack document of target_len with a needle inserted at depth, guaranteeing intact trailing queries."""
     haystack_tokens = tokenizer.encode(HAYSTACK_BASE, add_special_tokens=False)
     needle_tokens = tokenizer.encode(needle_str, add_special_tokens=False)
 
     if is_instruct and hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template:
-        dummy = [{"role": "user", "content": query_str}]
-        dummy_str = tokenizer.apply_chat_template(dummy, tokenize=False, add_generation_prompt=True)
-        overhead = len(tokenizer.encode(dummy_str, add_special_tokens=False))
-        avail = target_len - overhead - len(needle_tokens)
-        num_haystack = max(100, avail)
-        repeats = int(math.ceil(num_haystack / len(haystack_tokens)))
-        full_haystack = (haystack_tokens * repeats)[:num_haystack]
-        insert_pos = int(len(full_haystack) * depth)
+        test_messages = [{"role": "user", "content": "PLACEHOLDER_TOKEN\n\n" + query_str.strip()}]
+        template_str = tokenizer.apply_chat_template(test_messages, tokenize=False, add_generation_prompt=True)
+        if "PLACEHOLDER_TOKEN" in template_str:
+            prefix_str, suffix_str = template_str.split("PLACEHOLDER_TOKEN", 1)
+        else:
+            prefix_str = ""
+            suffix_str = "\n\n" + query_str.strip()
+        prefix_tokens = tokenizer.encode(prefix_str, add_special_tokens=False)
+        suffix_tokens = tokenizer.encode(suffix_str, add_special_tokens=False)
 
-        doc_tokens = full_haystack[:insert_pos] + needle_tokens + full_haystack[insert_pos:]
-        doc_str = tokenizer.decode(doc_tokens, skip_special_tokens=True)
-        messages = [
-            {"role": "user", "content": f"{doc_str}\n\n{query_str.strip()}"}
-        ]
-        final_str = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        final_tokens = tokenizer.encode(final_str, add_special_tokens=False)
-        return final_tokens[:target_len], insert_pos
+        overhead = len(prefix_tokens) + len(needle_tokens) + len(suffix_tokens)
+        avail = max(100, target_len - overhead)
+        repeats = int(math.ceil(avail / len(haystack_tokens)))
+        full_haystack = (haystack_tokens * repeats)[:avail]
+
+        insert_pos = int(len(full_haystack) * depth)
+        final_tokens = prefix_tokens + full_haystack[:insert_pos] + needle_tokens + full_haystack[insert_pos:] + suffix_tokens
+        return final_tokens, len(prefix_tokens) + insert_pos
     else:
-        query_tokens = tokenizer.encode(query_str, add_special_tokens=False)
-        num_haystack_needed = target_len - len(needle_tokens) - len(query_tokens)
-        if num_haystack_needed <= 0:
-            num_haystack_needed = 100
-        repeats = int(math.ceil(num_haystack_needed / len(haystack_tokens)))
-        full_haystack = (haystack_tokens * repeats)[:num_haystack_needed]
+        query_tokens = tokenizer.encode("\n\n" + query_str.strip(), add_special_tokens=False)
+        overhead = len(needle_tokens) + len(query_tokens)
+        avail = max(100, target_len - overhead)
+        repeats = int(math.ceil(avail / len(haystack_tokens)))
+        full_haystack = (haystack_tokens * repeats)[:avail]
 
         insert_pos = int(len(full_haystack) * depth)
         final_tokens = full_haystack[:insert_pos] + needle_tokens + full_haystack[insert_pos:] + query_tokens
-        return final_tokens[:target_len], insert_pos
+        return final_tokens, insert_pos
 
 
 def run_generation(
@@ -307,12 +307,12 @@ def run_subexp_28b_delta_qa(device: str = "cuda") -> Dict[str, Any]:
     delta_qa_values = [1, 3, 6, 10, 15, 22]
 
     filler_templates = {
-        1: "definitely",
-        3: "specifically identified as",
-        6: "confirmed by the system as",
-        10: "strictly verified by internal security protocols to be",
-        15: "strictly verified and confirmed by internal security protocol operations to be",
-        22: "strictly verified, authenticated, and approved by all standard internal network operational security protocols to be",
+        1: "was",
+        3: "was registered as",
+        6: "was officially confirmed and registered as",
+        10: "was officially verified, confirmed, documented, and registered as",
+        15: "was officially verified, confirmed, documented, authorized, archived, authenticated, and registered as",
+        22: "was officially verified, confirmed, documented, authorized, archived, authenticated, reviewed, inspected, approved, validated, certified, and registered as",
     }
 
     depths_n10 = np.linspace(0.12, 0.85, 10).tolist()
@@ -346,8 +346,8 @@ def run_subexp_28b_delta_qa(device: str = "cuda") -> Dict[str, Any]:
 
         for delta in delta_qa_values:
             filler = filler_templates[delta]
-            n_str = f"\n[The critical access authorization key is {filler} 8472.]\n"
-            q_str = "\nQuestion: What is the critical access authorization key? Answer: The access authorization key is"
+            n_str = f" Regarding Project-Alpha, {filler} 8472 during the audit. "
+            q_str = "\nQuestion: What 4-digit number was recorded regarding Project-Alpha? Answer: The number is"
             scores = []
             for d in depths_n10:
                 toks, _ = build_synthetic_context(tokenizer, target_len, n_str, q_str, d)
@@ -763,7 +763,7 @@ def run_subexp_28d_ablations_multiturn(device: str = "cuda") -> Dict[str, Any]:
 
         for seed_idx, d1 in enumerate(depths_n10):
             rng = np.random.RandomState(400 + seed_idx)
-            d2 = min(0.85, d1 + 0.30)
+            d2 = 0.20 if d1 > 0.50 else 0.75
             code1 = str(rng.randint(100, 999))
             code2 = str(rng.randint(1000, 9999))
 
@@ -783,7 +783,10 @@ def run_subexp_28d_ablations_multiturn(device: str = "cuda") -> Dict[str, Any]:
 
             p1 = int(rem_len * d1)
             p2 = int(rem_len * d2)
-            doc_haystack = hay[:p1] + f1_toks + hay[p1:p2] + f2_toks + hay[p2:]
+            if p1 > p2:
+                doc_haystack = hay[:p2] + f2_toks + hay[p2:p1] + f1_toks + hay[p1:]
+            else:
+                doc_haystack = hay[:p1] + f1_toks + hay[p1:p2] + f2_toks + hay[p2:]
             t1_tokens = doc_haystack + q1_toks
 
             # TURN 1 EXECUTION

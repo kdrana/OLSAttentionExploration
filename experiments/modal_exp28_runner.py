@@ -464,9 +464,10 @@ def main():
         except Exception:
             cached = {}
 
-    has_28b = "subexp_28b_qa_phase_diagram" in cached and "delta_qa_sweep" in cached.get("subexp_28b_qa_phase_diagram", {})
+    has_28b = False  # Re-run Delta_QA (leakage fix) and Span
     has_28c = "subexp_28c_ruler_and_longbench" in cached and "s_niah" in cached.get("subexp_28c_ruler_and_longbench", {})
-    has_28d = "subexp_28d_ablations_and_multiturn" in cached and "component_ablation" in cached.get("subexp_28d_ablations_and_multiturn", {})
+    has_28d_abl = False  # Re-run Ablations and Multi-Turn durability (frozen cache and reserved slots)
+    has_28d_grid = "subexp_28d_ablations_and_multiturn" in cached and "beta_gamma_grid" in cached.get("subexp_28d_ablations_and_multiturn", {})
     has_28e = "subexp_28e_hardware_profiling" in cached and "halo" in cached.get("subexp_28e_hardware_profiling", {})
 
     # Spawn 28A workers (n=30 cross-company)
@@ -479,8 +480,8 @@ def main():
     f_b_span = run_worker_28b_val_span.spawn() if not has_28b else None
     f_c_p1 = run_worker_28c_part1.spawn() if not has_28c else None
     f_c_p2 = run_worker_28c_part2.spawn() if not has_28c else None
-    f_d_abl = run_worker_28d_ablations.spawn() if not has_28d else None
-    f_d_grid = run_worker_28d_grid.spawn() if not has_28d else None
+    f_d_abl = run_worker_28d_ablations.spawn() if not has_28d_abl else None
+    f_d_grid = run_worker_28d_grid.spawn() if not has_28d_grid else None
     f_e_hw = run_worker_28e_hardware.spawn() if not has_28e else None
 
     print("\n[Modal Orchestrator] GPU worker tasks dispatched. Waiting for results...")
@@ -520,16 +521,20 @@ def main():
             if task in res_c_p2:
                 res_c_ruler[task].update(res_c_p2[task])
 
-    if has_28d:
-        print("  [✓] Worker 28D Ablations & Grid Loaded from verified cache")
+    if has_28d_abl:
+        print("  [✓] Worker 28D Ablations Loaded from verified cache")
         res_d_abl = {
             "component_ablation": cached["subexp_28d_ablations_and_multiturn"]["component_ablation"],
             "multiturn_durability": cached["subexp_28d_ablations_and_multiturn"]["multiturn_durability"],
         }
-        res_d_grid = cached["subexp_28d_ablations_and_multiturn"]["beta_gamma_grid"]
     else:
         res_d_abl = f_d_abl.get()
         print("  [✓] Worker 28D-Ablations Completed")
+
+    if has_28d_grid:
+        print("  [✓] Worker 28D-Grid Loaded from verified cache")
+        res_d_grid = cached["subexp_28d_ablations_and_multiturn"]["beta_gamma_grid"]
+    else:
         res_d_grid = f_d_grid.get()
         print("  [✓] Worker 28D-Grid Completed")
 

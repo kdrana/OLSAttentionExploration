@@ -220,9 +220,17 @@ class CognitiveDualControlAttention(nn.Module):
                 rope_attn = F.softmax(rope_scores, dim=-1).sum(dim=(0, 1, 2))
                 rope_attn_norm = rope_attn / (rope_attn.max() + 1e-6)
 
-                # SnapKV: kernel_size=5 (radius K=2), uniform average pooling
-                kernel = torch.ones(1, 1, 5, device=device, dtype=torch.float32) / 5.0
-                diffused = F.conv1d(rope_attn_norm.view(1, 1, hist_len), kernel, padding=2).squeeze()
+                K = self.diffusion_radius
+                if K == 0:
+                    diffused = rope_attn_norm
+                elif self.kernel_type == "uniform_box":
+                    kernel = torch.ones(1, 1, 2 * K + 1, device=device, dtype=torch.float32) / float(2 * K + 1)
+                    diffused = F.conv1d(rope_attn_norm.view(1, 1, hist_len), kernel, padding=K).squeeze()
+                else:
+                    delta = torch.arange(-K, K + 1, device=device, dtype=torch.float32)
+                    kernel = torch.exp(-self.decay_gamma * torch.abs(delta)).view(1, 1, -1)
+                    kernel = kernel / kernel.max()
+                    diffused = F.conv1d(rope_attn_norm.view(1, 1, hist_len), kernel, padding=K).squeeze()
 
                 if self.record_trace:
                     self.last_salience_trace = {
@@ -247,6 +255,9 @@ class CognitiveDualControlAttention(nn.Module):
             if self.use_derotation:
                 q_raw_obs = self.translation.translate_q(raw_query_states[:, :, -W_sample:, :])
                 k_raw_hist = self.translation.translate_k(raw_key_states[:, :, :hist_len, :])
+                if not self.is_qwen35:
+                    q_raw_obs = F.normalize(q_raw_obs, p=2, dim=-1)
+                    k_raw_hist = F.normalize(k_raw_hist, p=2, dim=-1)
                 k_raw_exp = k_raw_hist.repeat_interleave(self.num_key_value_groups, dim=1)
                 derot_scores = torch.einsum("bhqd,bhtd->bhqt", q_raw_obs.float(), k_raw_exp.float()) / math.sqrt(self.head_dim)
                 # Head-Peaked pooling: combine mean (consensus) and max (specialist retrieval head)
@@ -303,14 +314,11 @@ class CognitiveDualControlAttention(nn.Module):
                 s_bu = torch.zeros_like(s_td)
                 s_total = s_td
 
-            # (d) Budget-Adaptive 1D Diffusion (radius K=diffusion_radius, adaptive for small budgets)
+            # (d) 1D Diffusion (radius K=diffusion_radius)
             K = self.diffusion_radius
             if K == 0:
                 diffused = s_total
             else:
-                if self.diffusion_radius == 16 and k_select < 256:
-                    K = min(16, max(4, k_select // 16))
-
                 if self.kernel_type == "uniform_box":
                     kernel = torch.ones(1, 1, 2 * K + 1, device=device, dtype=torch.float32) / float(2 * K + 1)
                 else:
@@ -319,16 +327,29 @@ class CognitiveDualControlAttention(nn.Module):
                     kernel = kernel / kernel.max()
                 diffused = F.conv1d(s_total.view(1, 1, hist_len), kernel, padding=K).squeeze()
 
+            if self.use_surprise and self.surprise_beta > 0 and k_select > 16:
+                k_bu = max(16, k_select // 4)
+                if K == 0:
+                    diff_bu = s_bu
+                else:
+                    diff_bu = F.conv1d(s_bu.view(1, 1, hist_len), kernel, padding=K).squeeze()
+                bu_inds = torch.topk(diff_bu, k=min(k_bu, hist_len)).indices
+                diffused_remaining = diffused.clone()
+                diffused_remaining[bu_inds] = -1e9
+                k_rem = min(k_select - len(bu_inds), hist_len - len(bu_inds))
+                rem_inds = torch.topk(diffused_remaining, k=max(0, k_rem)).indices
+                res = torch.cat([bu_inds, rem_inds]).sort().values
+            else:
+                res = torch.topk(diffused, k=min(k_select, hist_len)).indices.sort().values
+
             if self.record_trace:
                 self.last_salience_trace = {
                     "s_td": s_td.detach().cpu().numpy().tolist(),
                     "s_bu": s_bu.detach().cpu().numpy().tolist() if isinstance(s_bu, torch.Tensor) else [0.0] * hist_len,
                     "s_total": s_total.detach().cpu().numpy().tolist(),
                     "diffused": diffused.detach().cpu().numpy().tolist(),
-                    "selected_indices": torch.topk(diffused, k=k_select).indices.detach().cpu().numpy().tolist(),
+                    "selected_indices": res.detach().cpu().numpy().tolist(),
                 }
-
-            res = torch.topk(diffused, k=k_select).indices.sort().values
             if str(device).startswith("cuda"):
                 torch.cuda.synchronize()
             self.last_selection_time_ms = (time.perf_counter() - t_start) * 1000.0
@@ -414,12 +435,9 @@ class CognitiveDualControlAttention(nn.Module):
             if self.freeze_salient_cache and self.salient_k_cache is not None and self.salient_k_cache.shape[2] > 0:
                 self.local_k_cache = key_states[:, :, -self.window_size:]
                 self.local_v_cache = value_states[:, :, -self.window_size:]
-                all_k = torch.cat([self.salient_k_cache, self.local_k_cache], dim=2)
-                all_v = torch.cat([self.salient_v_cache, self.local_v_cache], dim=2)
-
-                k_exp = all_k.repeat_interleave(self.num_key_value_groups, dim=1)
-                v_exp = all_v.repeat_interleave(self.num_key_value_groups, dim=1)
-                y = F.scaled_dot_product_attention(query_states, k_exp, v_exp, is_causal=False)
+                k_exp = key_states.repeat_interleave(self.num_key_value_groups, dim=1)
+                v_exp = value_states.repeat_interleave(self.num_key_value_groups, dim=1)
+                y = F.scaled_dot_product_attention(query_states, k_exp, v_exp, is_causal=True)
                 attn_output = y.transpose(1, 2).reshape(*input_shape, -1).contiguous().to(orig_dtype)
 
             elif T <= self.window_size:
@@ -540,7 +558,7 @@ def apply_halo_adapter_generic(
         if total_layers == 24 and hasattr(model.model.layers[3].self_attn, "q_norm"):
             layer_indices = [3, 7, 11, 15, 19, 23]
         else:
-            layer_indices = list(range(total_layers))
+            layer_indices = list(range(2, total_layers))
 
     for layer_idx in layer_indices:
         layer = model.model.layers[layer_idx]
