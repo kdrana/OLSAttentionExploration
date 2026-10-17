@@ -131,7 +131,7 @@ Why, then, does a phase-rectified, locally windowed matrix state (**Hybrid-BLUR*
 
 > **Theorem 3 (The Rank-$r$ Spectral Dilution Horizon):** *Consider a sequence of length $T$ containing $T - 1$ background tokens and a single needle token $\boldsymbol{k}_*$. In any unweighted recurrent Gramian $\boldsymbol{G}_T = \boldsymbol{\phi}(\boldsymbol{k}_*)\boldsymbol{\phi}(\boldsymbol{k}_*)^\top + \sum_{\tau \ne *} \boldsymbol{\phi}(\boldsymbol{k}_\tau)\boldsymbol{\phi}(\boldsymbol{k}_\tau)^\top + \lambda \boldsymbol{I}_r \in \mathbb{R}^{r \times r}$, the relative spectral contribution of the needle decays inversely with sequence length:*
 > $$\frac{\|\boldsymbol{\phi}(\boldsymbol{k}_*)\boldsymbol{\phi}(\boldsymbol{k}_*)^\top\|_F}{\|\boldsymbol{G}_T\|_F} \le \frac{C_{\boldsymbol{\phi}}}{T \cdot \lambda_{\min}(\boldsymbol{\Sigma}_K)} = \mathcal{O}\left(\frac{1}{T}\right)$$
-> *While linear attention accumulators typically maintain FP32 arithmetic precision, information-theoretic dilution occurs because the isolated needle's rank-1 outer product is overwhelmed by the growing background eigenvalue spectrum $\boldsymbol{G}_T$, driving its Rayleigh quotient below the effective retrieval sensitivity of query dot-products.*
+> *While linear attention accumulators typically maintain FP32 arithmetic precision ($2^{-23} \approx 1.19 \times 10^{-7}$), spectral dilution occurs because the condition number $\kappa(\boldsymbol{G}_T)$ degrades and the needle's rank-1 outer product is overwhelmed by the growing background eigenvalue spectrum $\boldsymbol{G}_T$ under the rank constraint $r \ll T$, driving its Rayleigh quotient below the effective retrieval sensitivity of query dot-products.*
 
 Fixed-rank recurrence acts as a **low-pass spectral blur**: it accurately captures the dominant principal components of the context (preserving global topic coherence, MMLU reasoning, and code synthesis at $932.0\times$ memory compression), but washes out isolated high-frequency needles into the background covariance. Preserving exact long-range recall therefore requires retaining discrete token representations for salient landmarks.
 
@@ -182,7 +182,8 @@ To establish the exact boundary where narrow observation pooling collapses, Sub-
    - At $\Delta = 1$: Isolated Top-$k$ = $80.0\% \pm 26.13\%$, SnapKV = $100.0\%$, $\text{H}_2\text{O}$ = $0.0\%$, HALO = $100.0\%$.
    - At $\Delta = 3$: Isolated Top-$k$ drops sharply to $40.0\% \pm 32.01\%$, while SnapKV and HALO maintain $100.0\%$.
    - At $\Delta = 6$: Isolated Top-$k$ collapses to $20.0\% \pm 26.13\%$, while SnapKV and HALO hold $100.0\%$.
-   - Across all grammatical separations up to $\Delta = 22$, HALO maintains a constant $100.0\% \pm 0.0\%$, whereas $\text{H}_2\text{O}$ remains completely blind ($0.0\%$). While SnapKV's $K=2$ kernel captures immediate neighbors in this synthetic template, Isolated Top-$k$ demonstrates the critical vulnerability of point-mass selection when filler tokens separate cue from value.
+   - At $\Delta \in \{10, 15\}$: Isolated Top-$k$ rebounds to $70.0\% \pm 29.94\%$ due to filler words in the synthetic template (e.g., `"registered"`, `"validated"`) independently matching observation queries, before returning to $100.0\%$ at $\Delta = 22$.
+   - Across all grammatical separations up to $\Delta = 22$, HALO maintains a constant $100.0\% \pm 0.0\%$, whereas $\text{H}_2\text{O}$ remains completely blind ($0.0\%$). While SnapKV's $K=2$ kernel captures immediate neighbors in this synthetic template (scoring $100.0\%$), Isolated Top-$k$ demonstrates the critical vulnerability of point-mass selection when filler tokens separate cue from value.
 2. **Value-Span Length ($L_{\text{val}} \in \{1, 3, 6, 10, 15\}$ segments):**
    - For a 1-segment code ($L = 1$), SnapKV achieves $100.0\%$ Exact Match (EM).
    - As soon as the payload spans 3 segments ($L = 3$, e.g. `"8472-X9F-Q7B"`), SnapKV collapses to **$0.0\%$ EM** (F1 = $26.67\% \pm 6.53\%$) because its narrow $K = 2$ kernel severs trailing alphanumeric segments.
@@ -208,7 +209,7 @@ To dissect the exact role of each mathematical module, Sub-Experiment 28D evalua
 
 Crucially, Table 1 reveals that on single isolated UUID needles, wide contiguous pooling alone ($K=16$) suffices to capture the multi-segment alphanumeric payload ($100.0\%$). However, on adversarial distractor benchmarks (MK-NIAH, Section 4.2), un-rotated alignment is decisive: SnapKV's post-RoPE observation query is misled by distractor keywords ($0.0\%$), whereas HALO's unrotated consensus alignment isolates the genuine target clause ($90.0\%$).
 
-In **Multi-Turn Durability** (Figure 3, Right), Turn 1 asks about a standard reading (compressing the cache to $N = 128$), while Turn 2 queries an unmentioned anomaly using the *frozen* Turn-1 cache. SnapKV drops from $100.0\%$ on Turn 1 to **$0.0\% \pm 0.0\%$ on Turn 2** because pure top-down attention permanently evicted the unqueried anomaly. In contrast, HALO retains historical landmarks across conversations ($20.0\%\text{–}30.0\%$), though bottom-up surprise ($\beta = 0.15$) introduces novelty sensitivity without outperforming pure top-down halo under dense uniform haystacks.
+In **Multi-Turn Durability** (Figure 3, Right), Turn 1 asks about a standard reading (compressing the cache to $N = 128$), while Turn 2 queries an unmentioned anomaly using the *frozen* Turn-1 cache. SnapKV drops from $100.0\%$ on Turn 1 to **$0.0\% \pm 0.0\%$ on Turn 2** because pure top-down attention permanently evicted the unqueried anomaly. In contrast, HALO retains historical landmarks across conversations ($20.0\%\text{–}30.0\%$), though bottom-up surprise ($\beta = 0.15$) introduces novelty sensitivity without outperforming pure top-down halo under dense uniform haystacks (where `halo_no_surprise` achieved $30.0\% \pm 29.94\%$ and `halo_full` achieved $20.0\% \pm 26.13\%$).
 
 ### 3.5 Hyperparameter Sensitivity & Flat Plateau Landscape ($\beta \times \gamma$)
 
@@ -260,30 +261,33 @@ On LongBench multi-sentence summarization (recalling 4 distinct mission facts), 
 
 ### 5.1 Cross-Company Generalization across Alibaba, Meta, and HuggingFace
 
-To ensure our conclusions are not artifacts of a single codebase or tokenizer, Sub-Experiment 28A evaluated **three distinct models from three independent organizations** ($T = 4,096, W = 512, N = 128$, $n = 10$ randomized trials per method per model with 95% CIs):
+To ensure our conclusions are not artifacts of a single codebase or tokenizer, Sub-Experiment 28A evaluated **three distinct models from three independent organizations** ($T = 4,096, W = 512, N = 128$, $n = 30$ randomized trials per model, across three balanced sub-tasks: 12 S-NIAH passkey trials, 10 UUID needle trials, and 8 retroactive framing trials):
 1. **Alibaba:** `Qwen/Qwen3.5-0.8B-Base` (24 layers: 18 Gated-DeltaNet + 6 GQA Attention layers)
 2. **Meta:** `unsloth/Llama-3.2-1B-Instruct` (16 Pure GQA RoPE layers)
 3. **HuggingFace:** `HuggingFaceTB/SmolLM2-1.7B-Instruct` (24 Pure MHA RoPE layers)
 
 ![Figure 6: Cross-Company Generalization Across 3 Model Families](../results/exp28_comprehensive_review_suite/fig77_cross_company_3models.png)
-*Figure 6: Cross-company evaluation across Alibaba (`Qwen3.5-0.8B`), Meta (`Llama-3.2-1B`), and HuggingFace (`SmolLM2-1.7B`) ($n=10$ randomized trials per bar with 95% CI error bars).*
+*Figure 6: Cross-company evaluation across Alibaba (`Qwen3.5-0.8B`), Meta (`Llama-3.2-1B`), and HuggingFace (`SmolLM2-1.7B`) ($n=30$ randomized trials per bar with 95% CI error bars).*
 
 ##### Table 3: Cross-Company High-Power Evaluation Across 3 Independent Model Families ($T=4,096, W=512, N=128$, $n=30$ randomized trials with $95\%$ CI)
 | Model & Organization | Full Softmax | StreamingLLM | Causal $\text{H}_2\text{O}$ | SnapKV ($K=2$) | **HALO (Ours)** | **HALO + BLUR** |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Alibaba Qwen3.5-0.8B** | $100.0\% \pm 0.0\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $56.67\% \pm 18.04\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
+| - *S-NIAH Passkey ($n=12$)* | $100.0\% \pm 0.0\%$ | $8.33\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
 | - *UUID Needle ($n=10$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | **$0.0\% \pm 0.0\%$** | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
 | - *Retroactive Framing ($n=8$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $62.50\% \pm 35.86\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
 | **Meta Llama-3.2-1B** | $66.67\% \pm 17.16\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $66.67\% \pm 17.16\%$ | $\mathbf{66.67\% \pm 17.16\%}$ | $\mathbf{66.67\% \pm 17.16\%}$ |
+| - *S-NIAH Passkey ($n=12$)* | $16.67\% \pm 22.02\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $16.67\% \pm 22.02\%$ | $\mathbf{16.67\% \pm 22.02\%}$ | $\mathbf{16.67\% \pm 22.02\%}$ |
 | - *UUID Needle ($n=10$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
 | - *Retroactive Framing ($n=8$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $100.0\% \pm 0.0\%$ | $\mathbf{100.0\% \pm 0.0\%}$ | $\mathbf{100.0\% \pm 0.0\%}$ |
 | **HuggingFace SmolLM2-1.7B** | $80.00\% \pm 14.56\%$ | $3.33\% \pm 6.53\%$ | $3.33\% \pm 6.53\%$ | $50.00\% \pm 18.20\%$ | $\mathbf{53.33\% \pm 18.16\%}$ | $43.33\% \pm 18.04\%$ |
+| - *S-NIAH Passkey ($n=12$)* | $58.33\% \pm 29.13\%$ | $8.33\% \pm 16.33\%$ | $8.33\% \pm 16.33\%$ | $58.33\% \pm 29.13\%$ | $\mathbf{58.33\% \pm 29.13\%}$ | $\mathbf{58.33\% \pm 29.13\%}$ |
 | - *UUID Needle ($n=10$)* | $100.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $30.00\% \pm 29.94\%$ | $\mathbf{50.00\% \pm 32.67\%}$ | $30.00\% \pm 29.94\%$ |
 | - *Retroactive Framing ($n=8$)* | $87.50\% \pm 24.50\%$ | $0.0\% \pm 0.0\%$ | $0.0\% \pm 0.0\%$ | $62.50\% \pm 35.86\%$ | $50.00\% \pm 37.04\%$ | $37.50\% \pm 35.86\%$ |
 
 - On **Alibaba `Qwen3.5-0.8B`**, SnapKV collapses completely on UUID needles ($0.0\%$), while **HALO achieves a perfect $100.0\% \pm 0.0\%$ composite recall**, matching uncompressed Full Softmax with zero degradation across all 30 trials.
-- On **Meta `Llama-3.2-1B`**, HALO achieves **$66.67\% \pm 17.16\%$ composite recall**, reproducing $100\%$ of the uncompressed model's retrieval capacity while holding UUID needle and retroactive recall at a perfect $100.0\%$.
-- On **HuggingFace `SmolLM2-1.7B`**, HALO achieves **$50.00\% \pm 32.67\%$** on alphanumeric UUID needles (outperforming SnapKV's $30.00\%$), while Causal $\text{H}_2\text{O}$ and StreamingLLM fail completely ($3.33\%$).
+- On **Meta `Llama-3.2-1B`**, all compressed methods (SnapKV, HALO, HALO+BLUR) reproduce $100\%$ of uncompressed Softmax capacity ($66.67\% \pm 17.16\%$). Importantly, the uncompressed base model itself scores only $16.67\% \pm 22.02\%$ on the synthetic S-NIAH passkey template due to chat-format sensitivity, but achieves $100.0\%$ on both UUID needle and retroactive framing; HALO matches uncompressed performance across all sub-tasks without loss.
+- On **HuggingFace `SmolLM2-1.7B`**, composite recall between HALO ($53.33\% \pm 18.16\%$) and SnapKV ($50.00\% \pm 18.20\%$) is statistically indistinguishable at $n=30$ ($p > 0.79$). Task breakdown reveals complementary profiles: HALO delivers superior retention on multi-token alphanumeric UUID needles ($50.00\%$ vs. $30.00\%$), while SnapKV shows slightly higher retention on retroactive framing ($62.50\%$ vs. $50.00\%$). Both methods decisively outperform causal eviction and streaming sinks ($3.33\%$).
 
 ### 5.2 Real-World Hardware Profiling: Prefill TTFT, Selection Overhead, Decode Throughput, and VRAM Scaling
 
@@ -296,11 +300,13 @@ Sub-Experiment 28E profiled wall-clock performance on an NVIDIA A10G Cloud GPU a
 | Sequence Length $T$ | Softmax KV (MiB) | HALO KV (MiB) | Compression Ratio | Selection Overhead (ms) | Decode Throughput | Peak VRAM (MiB) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **$T = 1,024$** | $3.0\text{ MiB}$ | $3.0\text{ MiB}$ | $1.0\times$ | $0.00\text{ ms}$ | $22.2\text{ tok/s}$ | $1,722.9\text{ MiB}$ |
-| **$T = 2,048$** | $6.0\text{ MiB}$ | $3.75\text{ MiB}$ | $1.6\times$ | $45.77\text{ ms}$ | $22.2\text{ tok/s}$ | $1,787.0\text{ MiB}$ |
+| **$T = 2,048$** | $6.0\text{ MiB}$ | $3.75\text{ MiB}$ | $1.6\times$ | $45.77\text{ ms}^*$ | $22.2\text{ tok/s}$ | $1,787.0\text{ MiB}$ |
 | **$T = 4,096$** | $12.0\text{ MiB}$ | $3.75\text{ MiB}$ | **$3.2\times$** | $13.76\text{ ms}$ | $22.1\text{ tok/s}$ | $2,039.2\text{ MiB}$ |
 | **$T = 8,192$** | $24.0\text{ MiB}$ | $3.75\text{ MiB}$ | **$6.4\times$** | $22.70\text{ ms}$ | $22.1\text{ tok/s}$ | $2,540.6\text{ MiB}$ |
 | **$T = 16,384$** | $48.0\text{ MiB}$ | $3.75\text{ MiB}$ | **$12.8\times$** | $25.30\text{ ms}$ | $22.4\text{ tok/s}$ | $3,545.5\text{ MiB}$ |
 | **$T = 32,768$** | $96.0\text{ MiB}$ | **$3.75\text{ MiB}$** | **$\mathbf{25.6\times}$** | **$51.42\text{ ms}$** | **$22.7\text{ tok/s}$** | $5,557.3\text{ MiB}$ |
+
+*\*Note: The $45.77\text{ ms}$ measurement at $T=2,048$ represents a first-call PyTorch CUDA kernel allocation/warmup artifact; steady-state selection overhead scales smoothly from $13.76\text{ ms}$ at 4k to $51.42\text{ ms}$ at 32k.*
 
 - **Resident Memory Clamping:** At $T = 32,768$, Full Softmax requires $96.0\text{ MiB}$ per sequence. HALO clamps the KV cache to a constant **$3.75\text{ MiB}$**—a **$25.6\times$ memory reduction**.
 - **Negligible Selection Overhead:** Because HALO's continuous diffusion is implemented as a 1D depthwise convolution (`F.conv1d`), salience selection adds only **$13.76\text{ ms}$ at $4\text{k}$** and **$51.42\text{ ms}$ at $32\text{k}$**, representing $<1.3\%$ of total prefill time.
