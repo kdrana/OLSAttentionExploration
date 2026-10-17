@@ -128,17 +128,6 @@ def generate_exp27_plots_cloud(metrics: dict) -> dict[str, bytes]:
 
     for m, col in palette.items():
         curve = [pareto_data.get(m, {}).get(str(n), 0.0) for n in n_budgets]
-        if sum(curve) == 0:
-            if m == "halo":
-                curve = [50.0, 83.3, 100.0, 100.0, 100.0]
-            elif m == "snapkv":
-                curve = [16.7, 33.3, 33.3, 50.0, 66.7]
-            elif m == "h2o":
-                curve = [16.7, 16.7, 16.7, 16.7, 33.3]
-            elif m == "streaming_llm":
-                curve = [0.0, 0.0, 0.0, 0.0, 0.0]
-            elif m == "hybrid_blur":
-                curve = [0.0, 0.0, 0.0, 0.0, 0.0]
         ax2.plot(n_budgets, curve, marker="o", lw=2.2, color=col, label=labels[m])
 
     ax2.set_xscale("log", base=2)
