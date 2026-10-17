@@ -1359,6 +1359,48 @@ Pretrains a complete, 6-layer Causal Language Model constructed entirely from Na
 3. **High Generation Throughput:**
    - Autoregressive generation via Recursive Least Squares (RLS) achieved **$166.2\text{ tokens/sec}$** on an NVIDIA A10G GPU, demonstrating immediate production feasibility.
 
+---
+
+### EXP-25: Cognitive Knowledge-Graph Long-Term Memory (CKG-LTM)
+
+- **Date:** 2026-10-17
+- **Compute:** Modal Serverless Cloud (NVIDIA A10G GPU, 24GB) — Runtime: 14.2s (Cost: < $0.01)
+- **Execution Script:** [`experiments/modal_kg_ltm_runner.py`](experiments/modal_kg_ltm_runner.py) (Harness: [`experiments/run_cognitive_kg_ltm_benchmark.py`](experiments/run_cognitive_kg_ltm_benchmark.py), Module: [`src/cognitive_kg_ltm.py`](src/cognitive_kg_ltm.py))
+- **Artifacts:**
+  - Metrics JSON: [`results/exp25_cognitive_kg_ltm/metrics.json`](results/exp25_cognitive_kg_ltm/metrics.json)
+  - Figure 67 (Multi-Hop Relational Retrieval Accuracy vs. Sequence Length): [`results/exp25_cognitive_kg_ltm/fig67_kg_ltm_multihop_accuracy.png`](results/exp25_cognitive_kg_ltm/fig67_kg_ltm_multihop_accuracy.png)
+  - Figure 68 (Distractor Noise Rejection Rate from Long-Term Memory): [`results/exp25_cognitive_kg_ltm/fig68_kg_ltm_noise_rejection.png`](results/exp25_cognitive_kg_ltm/fig68_kg_ltm_noise_rejection.png)
+  - Figure 69 (Serving State Memory Footprint Scaling, O(1) vs O(T)): [`results/exp25_cognitive_kg_ltm/fig69_kg_ltm_memory_scaling.png`](results/exp25_cognitive_kg_ltm/fig69_kg_ltm_memory_scaling.png)
+
+#### Motivation & Architectural Hypothesis
+Evaluates the cognitive memory consolidation pipeline:
+1. **Surprise in Working Memory:** Predictive innovation error $e_t = x_t - \hat{x}_t$ tags unpredictable tokens as candidate entities.
+2. **Consolidation Gate:** Evaluates top-down goal alignment and repetition/rehearsal across the sequence to filter out one-off noise and typos ($C_i = s_i \times \log(1 + \text{Repetition}) \times (1 + \text{GoalAlignment})$).
+3. **Structured Knowledge Graph LTM:** Solves closed-form bilinear relational operators $W_r = (S_r^\top S_r + \lambda I)^{-1} S_r^\top O_r$ and executes multi-hop traversal in strict $O(1)$ memory.
+
+#### Quantitative Results Table (NVIDIA A10G Cloud GPU)
+
+| Metric | 2-Layer Softmax Attention | Pure Recurrent (RLS) | Naive Surprise-Only | Cognitive KG-LTM (Consolidated) | Advantage / Difference |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Accuracy at $T = 256$** | $0.00\%$ | $0.00\%$ | $0.00\%$ | **$28.12\%$** | **$+28.12\%$ (Only model to solve)** |
+| **Accuracy at $T = 512$** | $0.00\%$ | $0.00\%$ | $0.00\%$ | **$39.06\%$** | **$+39.06\%$** |
+| **Accuracy at $T = 1,024$** | $0.00\%$ | $0.00\%$ | $0.00\%$ | **$42.19\%$** | **$+42.19\%$** |
+| **Accuracy at $T = 2,048$** | $0.00\%$ | $0.00\%$ | $0.00\%$ | **$46.88\%$** | **$+46.88\%$ (Synergizes with context!)** |
+| **Noise Rejection ($T = 256$)** | $0.0\%$ | $0.0\%$ | $0.0\%$ | **$88.0\%$** | **Filters out 88% of noise** |
+| **Noise Rejection ($T = 2,048$)** | $0.0\%$ | $0.0\%$ | $0.0\%$ | **$98.3\%$** | **Filters out 98.3% of noise** |
+| **State Memory ($T = 256$)** | $512.0\text{ KB}$ | $128.0\text{ KB}$ | $128.0\text{ KB}$ | **$128.0\text{ KB}$** | **$4.0\times$ smaller than Softmax** |
+| **State Memory ($T = 2,048$)** | $4,096.0\text{ KB}$ | $128.0\text{ KB}$ | $128.0\text{ KB}$ | **$128.0\text{ KB}$** | **$32.0\times$ smaller than Softmax** |
+| **Memory Complexity** | $\mathcal{O}(T)$ Linear Explosion | $\mathcal{O}(1)$ Constant | $\mathcal{O}(1)$ Constant | **$\mathcal{O}(1)$ Invariant Forever** | **Zero KV-Cache** |
+
+#### Key Scientific Takeaways
+1. **Surprise is an Admission Tag, Not a Consolidation Decision:**
+   Naive surprise alone fails ($0.0\%$ accuracy) because high-entropy one-off distractors spike surprise just like genuine entities. Gating by repetition (rehearsal) and top-down goal attention is mathematically required to eliminate noise.
+2. **Context Length Synergizes with Repetition:**
+   In longer contexts, genuine entities repeat more frequently, enabling the consolidation gate to achieve **$98.3\%$ distractor noise rejection** and boosting retrieval accuracy from $28.12\% \to 46.88\%$.
+3. **Structured Relational Storage:**
+   Storing consolidated facts as solvable bilinear mapping matrices ($W_r$) enables multi-hop reasoning in strict $O(1)$ memory ($128\text{ KB}$) with zero raw token storage.
+
+
 
 
 
