@@ -253,7 +253,8 @@ Across both `Qwen3.5-0.8B` and `Llama-3.2-1B`, HALO matches the full-attention b
 | StreamingLLM | $3.3\% \pm 6.5\%$ | $6.7\% \pm 9.1\%$ | $6.7\% \pm 9.1\%$ | $5.6\% \pm 4.8\%$ |
 | $\text{H}_2\text{O}$ (Cumulative) | $3.3\% \pm 6.5\%$ | $6.7\% \pm 9.1\%$ | $6.7\% \pm 9.1\%$ | $5.6\% \pm 4.8\%$ |
 | SnapKV ($K=2$) | $56.7\% \pm 18.0\%$ | $26.7\% \pm 16.1\%$ | $63.3\% \pm 17.5\%$ | $48.9\% \pm 10.4\%$ |
-| **HALO ($K=16$, Ours)** | $\mathbf{60.0\% \pm 17.8\%}$ | $\mathbf{56.7\% \pm 18.0\%}$ | $\mathbf{63.3\% \pm 17.5\%}$ | $\mathbf{60.0\% \pm 10.2\%}$ |
+| **HALO ($K=16$, Ours)** | $\mathbf{60.0\% \pm 17.8\%}$ | $\mathbf{56.7\% \pm 18.0\%}$ | $63.3\% \pm 17.5\%$ | $\mathbf{60.0\% \pm 10.2\%}$ |
+| **HALO-PerHead (Ours)** | $50.0\% \pm 18.2\%$ | $13.3\% \pm 12.4\%$ | $\mathbf{83.3\% \pm 13.6\%}$ | $48.9\% \pm 10.4\%$ |
 | **HALO + BLUR (Ours)** | $56.7\% \pm 18.0\%$ | $46.7\% \pm 18.2\%$ | $26.7\% \pm 16.1\%$ | $43.3\% \pm 10.3\%$ |
 
 *Table 4: Cross-organization evaluation across three model families at $T=4096$ (mean $\pm 95\%$ CI across $n=30$ trials per subtask and $n=90$ trials per model).*
@@ -310,6 +311,13 @@ $$s_{h, i} = a_{h, i}^{(\text{obs})} + \beta \, c_{h, i}^{(\text{obs})} + \lambd
 Each head independently convolves its salience trace with the wide-radius halo kernel and extracts its own top-$M$ landmark positions:
 $$\tilde{s}_{h, i} = \sum_{j=-K}^{K} \exp\left(-\gamma |j|\right) s_{h, i+j}, \qquad \mathcal{I}_h = \text{TopK}\left(\tilde{s}_{h, :}, \, M\right)$$
 Because every head selects the identical budget of $M$ tokens, the resulting discrete cache tensor has shape $\mathbf{K}_{\text{salient}} \in \mathbb{R}^{B \times H_{\text{kv}} \times M \times d_h}$. Crucially, this tensor consumes the **exact same physical HBM memory** as a head-shared cache, while allowing each head to retain its dedicated semantic landmarks. During autoregressive decoding ($T=1$), standard scaled dot-product attention computes $Q_h K_h^\top$ independently per head, enabling native execution on GPU hardware via `torch.gather` and FlashDecoding without cross-head interference.
+
+![Figure 10: SmolLM2 Per-Head vs Shared Ablation](../results/exp30_smollm_perhead_ablation/fig86_smollm_perhead_vs_shared.png)
+*Figure 10: Empirical ablation of Asynchronous Per-Head Landmark Allocation (`HALO-PerHead`) on `SmolLM2-1.7B` (32-head MHA, 22 hooked layers, $T=4096$, $W=512$, $M=128$, compression $5.33\times$, mean $\pm 95\%$ CI across $n=30$ seeds per task and $n=90$ composite trials). Per-head allocation elevates Displaced Context recall to $83.3\%$, matching the full-attention upper bound.*
+
+Empirical evaluation of `HALO-PerHead` on `SmolLM2-1.7B` uncovers an illuminating mechanistic trade-off across distinct recall tasks (Figure 10). On the Displaced Context task, where an override fact is placed deep in the historical prefix, per-head allocation elevates recall from $63.3\%$ to $83.3\%$. By sheltering specialist retrieval heads from being out-voted by local syntactic heads, per-head allocation recovers the full-attention performance upper bound ($83.3\%$).
+
+Conversely, on multi-token alphanumeric identifier binding, per-head allocation registers $13.3\%$, whereas head-pooled selection achieves $56.7\%$. This divergence exposes a fundamental property of deep Transformer architectures: multi-token entity binding relies on collaborative representation across multiple heads (such as character chunking and delimiter parsing). Because residual connections mix head outputs across layers ($x^{(l+1)} = x^{(l)} + W_O \text{Concat}(h_0, \dots, h_{31})$), head-isolated token eviction prevents intermediate heads from querying token representations preserved by alternate heads at preceding layers. In Multi-Head Attention architectures, head-pooled landmark selection provides the cross-head consensus necessary for compound entity composition.
 
 For serving frameworks whose paged memory managers require identical physical block tables across all heads, this can alternatively be handled via **Quota-Based Cluster Union**: the 32 heads are partitioned into $G=4$ functional clusters based on attention entropy (e.g., retrieval, induction, and syntactic heads), with each cluster assigned a guaranteed quota of $M/G$ landmark slots. This guarantees that deep retrieval circuits are never out-voted by local syntactic heads.
 
