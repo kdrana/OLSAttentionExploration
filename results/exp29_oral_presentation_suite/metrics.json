@@ -1,0 +1,483 @@
+{
+  "experiment_id": "EXP-29-ORAL-PRESENTATION-SUITE",
+  "description": "NeurIPS/ICLR Oral Presentation Upgrades: Multi-Tenant Serving, Length Scaling, Real Document QA & Mechanistic Interpretability",
+  "hardware": "NVIDIA A10G Cloud GPU (Modal)",
+  "serving_simulation": {
+    "sequence_length": 32768,
+    "gpu_total_mib": 24576.0,
+    "base_weight_mib": 1459.1,
+    "batch_sweep": {
+      "1": {
+        "original_softmax": {
+          "status": "OK",
+          "kv_cache_mib": 384.0,
+          "total_vram_mib": 1843.1,
+          "step_latency_ms": 87.3,
+          "decode_tok_per_sec": 11.45
+        },
+        "halo": {
+          "status": "OK",
+          "kv_cache_mib": 7.5,
+          "total_vram_mib": 1466.6,
+          "step_latency_ms": 53.57,
+          "decode_tok_per_sec": 18.67
+        }
+      },
+      "2": {
+        "original_softmax": {
+          "status": "OK",
+          "kv_cache_mib": 768.0,
+          "total_vram_mib": 2227.1,
+          "step_latency_ms": 62.87,
+          "decode_tok_per_sec": 31.81
+        },
+        "halo": {
+          "status": "OK",
+          "kv_cache_mib": 15.0,
+          "total_vram_mib": 1474.1,
+          "step_latency_ms": 54.11,
+          "decode_tok_per_sec": 36.96
+        }
+      },
+      "4": {
+        "original_softmax": {
+          "status": "OK",
+          "kv_cache_mib": 1536.0,
+          "total_vram_mib": 2995.1,
+          "step_latency_ms": 81.99,
+          "decode_tok_per_sec": 48.79
+        },
+        "halo": {
+          "status": "OK",
+          "kv_cache_mib": 30.0,
+          "total_vram_mib": 1489.1,
+          "step_latency_ms": 54.3,
+          "decode_tok_per_sec": 73.67
+        }
+      },
+      "8": {
+        "original_softmax": {
+          "status": "OK",
+          "kv_cache_mib": 3072.0,
+          "total_vram_mib": 4531.1,
+          "step_latency_ms": 60.9,
+          "decode_tok_per_sec": 131.36
+        },
+        "halo": {
+          "status": "OK",
+          "kv_cache_mib": 60.0,
+          "total_vram_mib": 1519.1,
+          "step_latency_ms": 53.35,
+          "decode_tok_per_sec": 149.94
+        }
+      },
+      "16": {
+        "original_softmax": {
+          "status": "OK",
+          "kv_cache_mib": 6144.0,
+          "total_vram_mib": 7603.1,
+          "step_latency_ms": 78.01,
+          "decode_tok_per_sec": 205.09
+        },
+        "halo": {
+          "status": "OK",
+          "kv_cache_mib": 120.0,
+          "total_vram_mib": 1579.1,
+          "step_latency_ms": 55.24,
+          "decode_tok_per_sec": 289.67
+        }
+      },
+      "32": {
+        "original_softmax": {
+          "status": "OOM",
+          "kv_cache_mib": 12288.0,
+          "total_vram_mib": 13747.1,
+          "decode_tok_per_sec": 0.0
+        },
+        "halo": {
+          "status": "OOM",
+          "kv_cache_mib": 240.0,
+          "total_vram_mib": 1699.1,
+          "decode_tok_per_sec": 0.0
+        }
+      },
+      "64": {
+        "original_softmax": {
+          "status": "OOM",
+          "kv_cache_mib": 24576.0,
+          "total_vram_mib": 26035.1,
+          "decode_tok_per_sec": 0.0
+        },
+        "halo": {
+          "status": "OOM",
+          "kv_cache_mib": 480.0,
+          "total_vram_mib": 1939.1,
+          "decode_tok_per_sec": 0.0
+        }
+      },
+      "128": {
+        "original_softmax": {
+          "status": "OOM",
+          "kv_cache_mib": 49152.0,
+          "total_vram_mib": 50611.1,
+          "decode_tok_per_sec": 0.0
+        },
+        "halo": {
+          "status": "OOM",
+          "kv_cache_mib": 960.0,
+          "total_vram_mib": 2419.1,
+          "decode_tok_per_sec": 0.0
+        }
+      }
+    }
+  },
+  "context_length_scaling": {
+    "4096": {
+      "original_softmax": {
+        "n": 6,
+        "mean": 100.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "streaming_llm": {
+        "n": 6,
+        "mean": 16.67,
+        "std": 40.82,
+        "sem": 16.67,
+        "ci95": 32.67
+      },
+      "h2o": {
+        "n": 6,
+        "mean": 16.67,
+        "std": 40.82,
+        "sem": 16.67,
+        "ci95": 32.67
+      },
+      "snapkv": {
+        "n": 6,
+        "mean": 33.33,
+        "std": 51.64,
+        "sem": 21.08,
+        "ci95": 41.32
+      },
+      "halo": {
+        "n": 6,
+        "mean": 100.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      }
+    },
+    "8192": {
+      "original_softmax": {
+        "n": 6,
+        "mean": 100.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "streaming_llm": {
+        "n": 6,
+        "mean": 0.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "h2o": {
+        "n": 6,
+        "mean": 0.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "snapkv": {
+        "n": 6,
+        "mean": 50.0,
+        "std": 54.77,
+        "sem": 22.36,
+        "ci95": 43.83
+      },
+      "halo": {
+        "n": 6,
+        "mean": 100.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      }
+    },
+    "16384": {
+      "original_softmax": {
+        "n": 6,
+        "mean": 100.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "streaming_llm": {
+        "n": 6,
+        "mean": 0.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "h2o": {
+        "n": 6,
+        "mean": 0.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "snapkv": {
+        "n": 6,
+        "mean": 33.33,
+        "std": 51.64,
+        "sem": 21.08,
+        "ci95": 41.32
+      },
+      "halo": {
+        "n": 6,
+        "mean": 100.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      }
+    },
+    "32768": {
+      "original_softmax": {
+        "n": 6,
+        "mean": 100.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "streaming_llm": {
+        "n": 6,
+        "mean": 0.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "h2o": {
+        "n": 6,
+        "mean": 0.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "snapkv": {
+        "n": 6,
+        "mean": 100.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      },
+      "halo": {
+        "n": 6,
+        "mean": 100.0,
+        "std": 0.0,
+        "sem": 0.0,
+        "ci95": 0.0
+      }
+    }
+  },
+  "real_world_docqa": {
+    "original_softmax": {
+      "fact_f1": {
+        "n": 8,
+        "mean": 77.71,
+        "std": 21.25,
+        "sem": 7.51,
+        "ci95": 14.73
+      },
+      "exact_match": {
+        "n": 8,
+        "mean": 37.5,
+        "std": 51.75,
+        "sem": 18.3,
+        "ci95": 35.86
+      }
+    },
+    "snapkv": {
+      "fact_f1": {
+        "n": 8,
+        "mean": 35.42,
+        "std": 35.0,
+        "sem": 12.38,
+        "ci95": 24.26
+      },
+      "exact_match": {
+        "n": 8,
+        "mean": 12.5,
+        "std": 35.36,
+        "sem": 12.5,
+        "ci95": 24.5
+      }
+    },
+    "halo": {
+      "fact_f1": {
+        "n": 8,
+        "mean": 72.71,
+        "std": 25.01,
+        "sem": 8.84,
+        "ci95": 17.33
+      },
+      "exact_match": {
+        "n": 8,
+        "mean": 37.5,
+        "std": 51.75,
+        "sem": 18.3,
+        "ci95": 35.86
+      }
+    },
+    "halo_blur": {
+      "fact_f1": {
+        "n": 8,
+        "mean": 70.21,
+        "std": 29.36,
+        "sem": 10.38,
+        "ci95": 20.35
+      },
+      "exact_match": {
+        "n": 8,
+        "mean": 37.5,
+        "std": 51.75,
+        "sem": 18.3,
+        "ci95": 35.86
+      }
+    }
+  },
+  "mechanistic_interpretability": {
+    "head_concentration": {
+      "layer_3": [
+        5.43,
+        4.01,
+        4.43,
+        3.67,
+        2.84,
+        7.34,
+        3.52,
+        9.04
+      ],
+      "layer_7": [
+        2.4,
+        16.23,
+        17.48,
+        9.29,
+        2.78,
+        0.3,
+        9.86,
+        22.14
+      ],
+      "layer_11": [
+        16.56,
+        16.12,
+        10.86,
+        17.79,
+        20.56,
+        12.93,
+        10.22,
+        21.33
+      ],
+      "layer_15": [
+        20.05,
+        19.12,
+        19.74,
+        16.13,
+        17.46,
+        17.99,
+        12.49,
+        16.65
+      ],
+      "layer_19": [
+        13.32,
+        14.61,
+        17.44,
+        15.48,
+        5.7,
+        18.68,
+        21.11,
+        17.06
+      ],
+      "layer_23": [
+        14.31,
+        15.97,
+        0.23,
+        17.77,
+        41.1,
+        15.16,
+        2.37,
+        14.17
+      ]
+    },
+    "head_entropy": {
+      "layer_3": [
+        8.69,
+        8.99,
+        7.92,
+        8.31,
+        9.94,
+        8.98,
+        7.72,
+        8.18
+      ],
+      "layer_7": [
+        7.27,
+        8.71,
+        7.63,
+        9.34,
+        8.88,
+        7.17,
+        7.23,
+        7.31
+      ],
+      "layer_11": [
+        9.09,
+        7.01,
+        8.14,
+        8.0,
+        8.07,
+        8.55,
+        8.56,
+        7.4
+      ],
+      "layer_15": [
+        8.63,
+        8.66,
+        8.2,
+        8.95,
+        8.71,
+        8.23,
+        7.79,
+        7.29
+      ],
+      "layer_19": [
+        8.47,
+        8.29,
+        8.27,
+        8.14,
+        8.98,
+        8.29,
+        8.23,
+        8.28
+      ],
+      "layer_23": [
+        8.57,
+        8.96,
+        6.69,
+        8.76,
+        6.52,
+        8.66,
+        7.0,
+        8.86
+      ]
+    },
+    "specialist_head_analysis": {
+      "layer": "layer_23",
+      "top_head_index": 4,
+      "top_head_concentration_pct": 41.1,
+      "mean_head_concentration_pct": 15.14,
+      "selectivity_multiplier": 2.72
+    }
+  }
+}
