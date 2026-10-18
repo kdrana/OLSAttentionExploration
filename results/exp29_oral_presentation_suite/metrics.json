@@ -11,64 +11,64 @@
         "original_softmax": {
           "status": "OK",
           "kv_cache_mib": 384.0,
-          "total_vram_mib": 2135.07,
-          "step_latency_ms": 57.79,
-          "decode_tok_per_sec": 17.31
+          "total_vram_mib": 2135.06,
+          "step_latency_ms": 46.45,
+          "decode_tok_per_sec": 21.53
         },
         "halo": {
           "status": "OK",
           "kv_cache_mib": 7.5,
           "total_vram_mib": 1511.72,
-          "step_latency_ms": 56.75,
-          "decode_tok_per_sec": 17.62
+          "step_latency_ms": 45.96,
+          "decode_tok_per_sec": 21.76
         }
       },
       "2": {
         "original_softmax": {
           "status": "OK",
           "kv_cache_mib": 768.0,
-          "total_vram_mib": 2793.96,
-          "step_latency_ms": 57.12,
-          "decode_tok_per_sec": 35.01
+          "total_vram_mib": 2793.95,
+          "step_latency_ms": 47.43,
+          "decode_tok_per_sec": 42.17
         },
         "halo": {
           "status": "OK",
           "kv_cache_mib": 15.0,
           "total_vram_mib": 1558.25,
-          "step_latency_ms": 56.96,
-          "decode_tok_per_sec": 35.11
+          "step_latency_ms": 47.42,
+          "decode_tok_per_sec": 42.18
         }
       },
       "4": {
         "original_softmax": {
           "status": "OK",
           "kv_cache_mib": 1536.0,
-          "total_vram_mib": 4112.63,
-          "step_latency_ms": 67.18,
-          "decode_tok_per_sec": 59.54
+          "total_vram_mib": 4112.6,
+          "step_latency_ms": 70.31,
+          "decode_tok_per_sec": 56.89
         },
         "halo": {
           "status": "OK",
           "kv_cache_mib": 30.0,
           "total_vram_mib": 1619.64,
-          "step_latency_ms": 56.3,
-          "decode_tok_per_sec": 71.05
+          "step_latency_ms": 46.96,
+          "decode_tok_per_sec": 85.18
         }
       },
       "8": {
         "original_softmax": {
           "status": "OK",
           "kv_cache_mib": 3072.0,
-          "total_vram_mib": 6747.46,
-          "step_latency_ms": 123.01,
-          "decode_tok_per_sec": 65.04
+          "total_vram_mib": 6747.27,
+          "step_latency_ms": 130.36,
+          "decode_tok_per_sec": 61.37
         },
         "halo": {
           "status": "OK",
           "kv_cache_mib": 60.0,
           "total_vram_mib": 1762.41,
-          "step_latency_ms": 56.37,
-          "decode_tok_per_sec": 141.91
+          "step_latency_ms": 46.78,
+          "decode_tok_per_sec": 171.03
         }
       },
       "16": {
@@ -76,15 +76,15 @@
           "status": "OK",
           "kv_cache_mib": 6144.0,
           "total_vram_mib": 12018.37,
-          "step_latency_ms": 235.42,
-          "decode_tok_per_sec": 67.96
+          "step_latency_ms": 248.99,
+          "decode_tok_per_sec": 64.26
         },
         "halo": {
           "status": "OK",
           "kv_cache_mib": 120.0,
           "total_vram_mib": 2047.87,
-          "step_latency_ms": 56.16,
-          "decode_tok_per_sec": 284.92
+          "step_latency_ms": 48.5,
+          "decode_tok_per_sec": 329.88
         }
       },
       "32": {
@@ -98,8 +98,8 @@
           "status": "OK",
           "kv_cache_mib": 240.0,
           "total_vram_mib": 2628.06,
-          "step_latency_ms": 80.6,
-          "decode_tok_per_sec": 397.01
+          "step_latency_ms": 83.96,
+          "decode_tok_per_sec": 381.13
         }
       },
       "64": {
@@ -113,8 +113,8 @@
           "status": "OK",
           "kv_cache_mib": 480.0,
           "total_vram_mib": 3760.33,
-          "step_latency_ms": 142.72,
-          "decode_tok_per_sec": 448.43
+          "step_latency_ms": 151.81,
+          "decode_tok_per_sec": 421.59
         }
       },
       "128": {
@@ -128,8 +128,8 @@
           "status": "OK",
           "kv_cache_mib": 960.0,
           "total_vram_mib": 6042.6,
-          "step_latency_ms": 272.26,
-          "decode_tok_per_sec": 470.15
+          "step_latency_ms": 291.23,
+          "decode_tok_per_sec": 439.51
         }
       }
     }
@@ -304,17 +304,17 @@
     "streaming_llm": {
       "fact_f1": {
         "n": 12,
-        "mean": 16.67,
-        "std": 24.62,
-        "sem": 7.11,
-        "ci95": 13.93
+        "mean": 20.83,
+        "std": 33.43,
+        "sem": 9.65,
+        "ci95": 18.91
       },
       "exact_match": {
         "n": 12,
-        "mean": 0.0,
-        "std": 0.0,
-        "sem": 0.0,
-        "ci95": 0.0
+        "mean": 8.33,
+        "std": 28.87,
+        "sem": 8.33,
+        "ci95": 16.33
       }
     },
     "h2o": {
@@ -385,71 +385,71 @@
   "mechanistic_interpretability": {
     "head_concentration": {
       "layer_3": [
-        5.41,
-        4.03,
+        5.43,
+        4.01,
         4.43,
-        3.68,
+        3.67,
         2.84,
-        7.32,
-        3.51,
-        9.09
+        7.34,
+        3.52,
+        9.04
       ],
       "layer_7": [
-        2.42,
-        16.22,
-        17.56,
-        9.36,
+        2.4,
+        16.23,
+        17.48,
+        9.29,
         2.78,
         0.3,
-        10.02,
-        22.16
+        9.86,
+        22.14
       ],
       "layer_11": [
-        16.52,
-        16.08,
-        10.81,
-        17.8,
-        20.57,
-        13.04,
-        10.18,
-        21.38
+        16.56,
+        16.12,
+        10.86,
+        17.79,
+        20.56,
+        12.93,
+        10.22,
+        21.33
       ],
       "layer_15": [
-        20.09,
-        19.15,
-        19.68,
-        16.08,
-        17.45,
-        18.0,
-        12.46,
-        16.64
+        20.05,
+        19.12,
+        19.74,
+        16.13,
+        17.46,
+        17.99,
+        12.49,
+        16.65
       ],
       "layer_19": [
-        13.39,
-        14.64,
-        17.45,
-        15.55,
-        5.66,
-        18.7,
-        21.0,
-        17.01
+        13.32,
+        14.61,
+        17.44,
+        15.48,
+        5.7,
+        18.68,
+        21.11,
+        17.06
       ],
       "layer_23": [
-        14.29,
-        15.95,
+        14.31,
+        15.97,
         0.23,
-        17.86,
-        40.66,
-        15.03,
+        17.77,
+        41.1,
+        15.16,
         2.37,
-        14.15
+        14.17
       ]
     },
     "head_entropy": {
       "layer_3": [
-        8.7,
-        8.98,
-        7.93,
+        8.69,
+        8.99,
+        7.92,
         8.31,
         9.94,
         8.98,
@@ -458,61 +458,61 @@
       ],
       "layer_7": [
         7.27,
-        8.72,
-        7.62,
+        8.71,
+        7.63,
         9.34,
-        8.87,
+        8.88,
         7.17,
         7.23,
-        7.3
+        7.31
       ],
       "layer_11": [
-        9.08,
+        9.09,
         7.01,
         8.14,
-        8.01,
-        8.06,
-        8.54,
+        8.0,
+        8.07,
+        8.55,
         8.56,
         7.4
       ],
       "layer_15": [
-        8.62,
+        8.63,
         8.66,
         8.2,
-        8.94,
-        8.7,
-        8.22,
-        7.78,
+        8.95,
+        8.71,
+        8.23,
+        7.79,
         7.29
       ],
       "layer_19": [
         8.47,
         8.29,
-        8.26,
+        8.27,
         8.14,
-        8.97,
-        8.28,
+        8.98,
+        8.29,
         8.23,
         8.28
       ],
       "layer_23": [
-        8.56,
+        8.57,
         8.96,
         6.69,
-        8.75,
+        8.76,
         6.52,
         8.66,
         7.0,
-        8.85
+        8.86
       ]
     },
     "specialist_head_analysis": {
       "layer": "layer_23",
       "top_head_index": 4,
-      "top_head_concentration_pct": 40.66,
-      "mean_head_concentration_pct": 15.07,
-      "selectivity_multiplier": 2.7
+      "top_head_concentration_pct": 41.1,
+      "mean_head_concentration_pct": 15.14,
+      "selectivity_multiplier": 2.72
     }
   }
 }

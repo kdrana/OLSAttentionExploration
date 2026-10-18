@@ -293,7 +293,7 @@ def run_context_length_single_length(T: int, n_trials: int = 8, device: str = "c
 
         scores = []
         for d, code, inp in trials:
-            gen = run_generation(model, tokenizer, device, inp, max_new_tokens=24)
+            gen = run_generation(model, tokenizer, device, inp, max_new_tokens=28)
             scores.append(100.0 if code in gen else 0.0)
 
         stats = compute_stats(scores)
