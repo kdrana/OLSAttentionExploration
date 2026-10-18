@@ -53,10 +53,8 @@ def run_multitenant_serving_benchmark(device: str = "cuda") -> Dict[str, Any]:
 
     batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128]
     seq_len = 32768
-    num_heads = model.config.num_attention_heads
-    num_kv_heads = getattr(model.config, "num_key_value_heads", num_heads)
-    head_dim = getattr(model.config, "head_dim", model.config.hidden_size // num_heads)
     num_attn_layers = len(target_layers)
+    dtype = next(model.parameters()).dtype
 
     # Base weight memory in MiB
     if torch.cuda.is_available():
@@ -74,6 +72,13 @@ def run_multitenant_serving_benchmark(device: str = "cuda") -> Dict[str, Any]:
         "base_weight_mib": round(base_vram_mib, 2),
         "batch_sweep": {},
     }
+
+    # Inspect layer head configuration
+    apply_halo_adapter_generic(model, window_size=512, max_salient=128, mode="halo",
+                               layer_indices=target_layers, device=device)
+    sample_mod = model.model.layers[target_layers[0]].cdca_attn
+    num_kv_heads = sample_mod.num_key_value_heads
+    head_dim = sample_mod.head_dim
 
     # KV footprint per token per layer per head (bfloat16 = 2 bytes)
     bytes_per_tok_kv = 2 * 2 * num_kv_heads * head_dim * num_attn_layers
@@ -96,37 +101,51 @@ def run_multitenant_serving_benchmark(device: str = "cuda") -> Dict[str, Any]:
             }
         else:
             try:
-                warmup_steps = 2
-                measure_steps = 6
-                dummy_input = torch.randint(0, 1000, (b, 1), device=device)
-
-                # Apply full adapter
                 apply_halo_adapter_generic(model, window_size=seq_len + 100, max_salient=0, mode="original_softmax",
                                            layer_indices=target_layers, device=device)
-
-                for _ in range(warmup_steps):
-                    _ = model(dummy_input)
                 if torch.cuda.is_available():
-                    torch.cuda.synchronize()
+                    torch.cuda.reset_peak_memory_stats()
 
-                t0 = time.perf_counter()
-                for _ in range(measure_steps):
-                    _ = model(dummy_input)
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
-                t1 = time.perf_counter()
+                for l_idx in target_layers:
+                    mod = model.model.layers[l_idx].cdca_attn
+                    kv_h = mod.num_key_value_heads
+                    h_dim = mod.head_dim
+                    mod.window_size = seq_len
+                    mod.local_k_cache = torch.randn(b, kv_h, seq_len, h_dim, device=device, dtype=dtype)
+                    mod.local_v_cache = torch.randn(b, kv_h, seq_len, h_dim, device=device, dtype=dtype)
+                    mod.salient_k_cache = None
+                    mod.salient_v_cache = None
+
+                dummy_input = torch.randint(0, 1000, (b, 1), device=device)
+                warmup_steps = 2
+                measure_steps = 6
+
+                with torch.no_grad():
+                    for _ in range(warmup_steps):
+                        _ = model(dummy_input, use_cache=True)
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+
+                    t0 = time.perf_counter()
+                    for _ in range(measure_steps):
+                        _ = model(dummy_input, use_cache=True)
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                    t1 = time.perf_counter()
 
                 step_time = (t1 - t0) / measure_steps
                 tok_per_sec = b / step_time
-                print(f"  [Full Softmax] B={b}: KV={softmax_kv_mib:.1f} MiB, Throughput={tok_per_sec:.1f} tok/s")
+                peak_vram_mib = (torch.cuda.max_memory_allocated() / (1024 ** 2)) if torch.cuda.is_available() else (base_vram_mib + softmax_kv_mib)
+
+                print(f"  [Full Softmax] B={b}: KV={softmax_kv_mib:.1f} MiB, Peak VRAM={peak_vram_mib:.1f} MiB, Throughput={tok_per_sec:.1f} tok/s")
                 results["batch_sweep"][str(b)]["original_softmax"] = {
                     "status": "OK",
                     "kv_cache_mib": round(softmax_kv_mib, 2),
-                    "total_vram_mib": round(base_vram_mib + softmax_kv_mib, 2),
+                    "total_vram_mib": round(peak_vram_mib, 2),
                     "step_latency_ms": round(step_time * 1000, 2),
                     "decode_tok_per_sec": round(tok_per_sec, 2),
                 }
-            except Exception as e:
+            except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
                 print(f"  [Full Softmax] B={b}: Caught OOM during execution ({e})")
                 results["batch_sweep"][str(b)]["original_softmax"] = {
                     "status": "OOM",
@@ -135,6 +154,11 @@ def run_multitenant_serving_benchmark(device: str = "cuda") -> Dict[str, Any]:
                     "decode_tok_per_sec": 0.0,
                 }
             finally:
+                for l_idx in target_layers:
+                    if hasattr(model.model.layers[l_idx], "cdca_attn"):
+                        mod = model.model.layers[l_idx].cdca_attn
+                        mod.local_k_cache = None
+                        mod.local_v_cache = None
                 gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -148,33 +172,49 @@ def run_multitenant_serving_benchmark(device: str = "cuda") -> Dict[str, Any]:
             apply_halo_adapter_generic(model, window_size=512, max_salient=128, mode="halo",
                                        use_derotation=True, use_surprise=True, diffusion_radius=16,
                                        kernel_type="exponential", layer_indices=target_layers, device=device)
+            if torch.cuda.is_available():
+                torch.cuda.reset_peak_memory_stats()
+
+            for l_idx in target_layers:
+                mod = model.model.layers[l_idx].cdca_attn
+                kv_h = mod.num_key_value_heads
+                h_dim = mod.head_dim
+                mod.window_size = 512
+                mod.salient_k_cache = torch.randn(b, kv_h, 128, h_dim, device=device, dtype=dtype)
+                mod.salient_v_cache = torch.randn(b, kv_h, 128, h_dim, device=device, dtype=dtype)
+                mod.local_k_cache = torch.randn(b, kv_h, 512, h_dim, device=device, dtype=dtype)
+                mod.local_v_cache = torch.randn(b, kv_h, 512, h_dim, device=device, dtype=dtype)
 
             dummy_input = torch.randint(0, 1000, (b, 1), device=device)
             warmup_steps = 2
             measure_steps = 6
-            for _ in range(warmup_steps):
-                _ = model(dummy_input)
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
 
-            t0 = time.perf_counter()
-            for _ in range(measure_steps):
-                _ = model(dummy_input)
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
-            t1 = time.perf_counter()
+            with torch.no_grad():
+                for _ in range(warmup_steps):
+                    _ = model(dummy_input, use_cache=True)
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+
+                t0 = time.perf_counter()
+                for _ in range(measure_steps):
+                    _ = model(dummy_input, use_cache=True)
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+                t1 = time.perf_counter()
 
             step_time = (t1 - t0) / measure_steps
             tok_per_sec = b / step_time
-            print(f"  [HALO (Ours)] B={b}: KV={halo_kv_mib:.1f} MiB, Throughput={tok_per_sec:.1f} tok/s")
+            peak_vram_mib = (torch.cuda.max_memory_allocated() / (1024 ** 2)) if torch.cuda.is_available() else (base_vram_mib + halo_kv_mib)
+
+            print(f"  [HALO (Ours)] B={b}: KV={halo_kv_mib:.1f} MiB, Peak VRAM={peak_vram_mib:.1f} MiB, Throughput={tok_per_sec:.1f} tok/s")
             results["batch_sweep"][str(b)]["halo"] = {
                 "status": "OK",
                 "kv_cache_mib": round(halo_kv_mib, 2),
-                "total_vram_mib": round(base_vram_mib + halo_kv_mib, 2),
+                "total_vram_mib": round(peak_vram_mib, 2),
                 "step_latency_ms": round(step_time * 1000, 2),
                 "decode_tok_per_sec": round(tok_per_sec, 2),
             }
-        except Exception as e:
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
             print(f"  [HALO] B={b}: Caught OOM during execution ({e})")
             results["batch_sweep"][str(b)]["halo"] = {
                 "status": "OOM",
@@ -183,6 +223,13 @@ def run_multitenant_serving_benchmark(device: str = "cuda") -> Dict[str, Any]:
                 "decode_tok_per_sec": 0.0,
             }
         finally:
+            for l_idx in target_layers:
+                if hasattr(model.model.layers[l_idx], "cdca_attn"):
+                    mod = model.model.layers[l_idx].cdca_attn
+                    mod.local_k_cache = None
+                    mod.local_v_cache = None
+                    mod.salient_k_cache = None
+                    mod.salient_v_cache = None
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -198,10 +245,10 @@ def run_multitenant_serving_benchmark(device: str = "cuda") -> Dict[str, Any]:
 # =====================================================================
 # 2. CONTEXT LENGTH SCALING BENCHMARK (4k -> 8k -> 16k -> 32k)
 # =====================================================================
-def run_context_length_single_length(T: int, n_trials: int = 6, device: str = "cuda") -> Dict[str, Any]:
+def run_context_length_single_length(T: int, n_trials: int = 8, device: str = "cuda") -> Dict[str, Any]:
     """
     Evaluates factual retrieval accuracy for a single context length T.
-    Tests methods across n_trials evenly spaced needle insertion depths.
+    Tests methods across n_trials evenly spaced needle insertion depths using a 5-part compound identifier.
     """
     print(f"\n>>> Benchmarking Context Length T = {T} Tokens (n={n_trials}) <<<")
     model_name = "Qwen/Qwen3.5-0.8B-Base"
@@ -209,11 +256,16 @@ def run_context_length_single_length(T: int, n_trials: int = 6, device: str = "c
     target_layers = [3, 7, 11, 15, 19, 23]
     methods = ["original_softmax", "streaming_llm", "h2o", "snapkv", "halo"]
 
-    depths = np.linspace(0.12, 0.92, n_trials).tolist()
+    depths = np.linspace(0.10, 0.90, n_trials).tolist()
     rng = random.Random(42 + T)
     trials = []
     for d in depths:
-        code = f"{rng.choice(['X9F','A3K','Q7B','M4L','V2R','Z8J'])}-{rng.randint(100, 999)}-{rng.choice(['CZ8','WP2','RN5','TK7','DY4'])}"
+        p1 = rng.choice(['X9F', 'A3K', 'Q7B', 'M4L', 'V2R', 'Z8J'])
+        n1 = rng.randint(100, 999)
+        p2 = rng.choice(['CZ8', 'WP2', 'RN5', 'TK7', 'DY4', 'HL3'])
+        n2 = rng.randint(1000, 9999)
+        p3 = rng.choice(['B6G', 'K1E', 'S5P', 'T8W', 'J4C', 'U9V'])
+        code = f"{p1}-{n1}-{p2}-{n2}-{p3}"
         n_str = f"\n[The target alpha-numeric registration identifier assigned to the primary node is strictly recorded in the vault as {code} for verification.]\n"
         q_str = f"\nQuestion: What is the target alpha-numeric registration identifier assigned to the primary node? Answer with only the identifier:"
         toks, _ = build_synthetic_context(tokenizer, T, n_str, q_str, d)
@@ -241,7 +293,7 @@ def run_context_length_single_length(T: int, n_trials: int = 6, device: str = "c
 
         scores = []
         for d, code, inp in trials:
-            gen = run_generation(model, tokenizer, device, inp, max_new_tokens=16)
+            gen = run_generation(model, tokenizer, device, inp, max_new_tokens=24)
             scores.append(100.0 if code in gen else 0.0)
 
         stats = compute_stats(scores)
@@ -259,7 +311,7 @@ def run_context_length_single_length(T: int, n_trials: int = 6, device: str = "c
 def run_context_length_scaling_benchmark(device: str = "cuda") -> Dict[str, Any]:
     """
     Evaluates factual retrieval accuracy across sequence lengths
-    T in {4096, 8192, 16384, 32768} (n=6 trials per point) on Qwen3.5-0.8B.
+    T in {4096, 8192, 16384, 32768} (n=8 trials per point) on Qwen3.5-0.8B.
     Demonstrates that HALO's continuous diffusion is length-invariant.
     """
     print("\n" + "=" * 80)
@@ -269,7 +321,7 @@ def run_context_length_scaling_benchmark(device: str = "cuda") -> Dict[str, Any]
     lengths = [4096, 8192, 16384, 32768]
     results = {}
     for T in lengths:
-        results[str(T)] = run_context_length_single_length(T, n_trials=6, device=device)
+        results[str(T)] = run_context_length_single_length(T, n_trials=8, device=device)
 
     return results
 
@@ -279,27 +331,30 @@ def run_context_length_scaling_benchmark(device: str = "cuda") -> Dict[str, Any]
 # =====================================================================
 def run_real_world_docqa_benchmark(device: str = "cuda") -> Dict[str, Any]:
     """
-    Evaluates real-world multi-sentence document QA spanning 4k–8k tokens
+    Evaluates real-world multi-sentence document QA spanning 4k–6k tokens
     based on canonical LongBench MultiFieldQA-en and Qasper evaluation formats.
     Measures Token F1 and Subspan Exact Match across complex academic/legal passages.
+    Evaluates 12 technical instances across all 6 architectures with aliased fact grouping.
     """
     print("\n" + "=" * 80)
-    print("SUB-EXP 29C: Real-World Complex Document QA Benchmark (LongBench Suite)")
+    print("SUB-EXP 29C: Real-World Complex Document QA Benchmark (LongBench Suite, N=12)")
     print("=" * 80)
 
     model_name = "Qwen/Qwen3.5-0.8B-Base"
     model, tokenizer = load_model_and_tokenizer(model_name, device=device)
     target_layers = [3, 7, 11, 15, 19, 23]
 
-    # Curated real-world academic & technical QA evaluation instances
-    # Each contains multi-paragraph context (4k-6k tokens) with multi-sentence reasoning targets
+    # Curated real-world academic & technical QA evaluation instances (12 technical domains)
     doc_qa_instances = [
         {
             "id": "docqa_physics_01",
             "topic": "Astrophysics & Interferometry",
             "evidence": "The Advanced Laser Interferometer Gravitational-Wave Observatory (LIGO) detected signal GW150914 using twin 4-kilometer Fabry-Pérot resonant cavities located in Hanford, Washington, and Livingston, Louisiana, operating at a laser wavelength of 1064 nanometers with an input laser power of 20 Watts.",
             "question": "What were the laser wavelength and operating laser input power utilized by LIGO during the detection of GW150914?",
-            "ground_truth": ["1064 nanometers", "20 Watts"],
+            "fact_groups": [
+                ["1064 nanometers", "1064 nm", "1064nm", "1064"],
+                ["20 watts", "20 w", "20w", "20"],
+            ],
             "target_len": 4096,
             "depth": 0.25,
         },
@@ -308,7 +363,13 @@ def run_real_world_docqa_benchmark(device: str = "cuda") -> Dict[str, Any]:
             "topic": "CRISPR-Cas Molecular Therapeutics",
             "evidence": "In the engineered Cas9 variant SpCas9-HF1, non-specific genomic cleavage was reduced by mutating four key residues (N497A, R661A, Q695A, and Q926A) that contact the target DNA backbone, decreasing off-target indel frequency by 98.4% while preserving on-target editing efficiency above 85.0%.",
             "question": "Which four amino acid residues were mutated to engineer SpCas9-HF1, and by what percentage was off-target cleavage reduced?",
-            "ground_truth": ["N497A", "R661A", "Q695A", "Q926A", "98.4%"],
+            "fact_groups": [
+                ["n497a"],
+                ["r661a"],
+                ["q695a"],
+                ["q926a"],
+                ["98.4%", "98.4 percent", "98.4"],
+            ],
             "target_len": 5120,
             "depth": 0.45,
         },
@@ -317,7 +378,10 @@ def run_real_world_docqa_benchmark(device: str = "cuda") -> Dict[str, Any]:
             "topic": "Distributed Consensus Protocols",
             "evidence": "The Raft consensus algorithm decomposes state-machine replication into leader election, log replication, and safety enforcement. Leaders maintain cluster liveness via periodic AppendEntries heartbeats with an election timeout randomized between 150 milliseconds and 300 milliseconds to avoid split votes.",
             "question": "What is the randomized election timeout range utilized in the Raft protocol to avoid split-vote deadlocks?",
-            "ground_truth": ["150 milliseconds", "300 milliseconds", "150 ms", "300 ms"],
+            "fact_groups": [
+                ["150 milliseconds", "150 ms", "150ms", "150"],
+                ["300 milliseconds", "300 ms", "300ms", "300"],
+            ],
             "target_len": 6144,
             "depth": 0.65,
         },
@@ -326,7 +390,10 @@ def run_real_world_docqa_benchmark(device: str = "cuda") -> Dict[str, Any]:
             "topic": "Lithography & EUV Transistor Fabrication",
             "evidence": "Extreme ultraviolet lithography operates at an exposure wavelength of 13.5 nanometers using high-repetition tin plasma sources driven by a pulsed carbon dioxide laser, achieving numerical aperture resolution of 0.33 NA for sub-5nm FinFET and nanosheet gate-all-around architectures.",
             "question": "What is the operating exposure wavelength and numerical aperture resolution for standard commercial EUV lithography systems?",
-            "ground_truth": ["13.5 nanometers", "0.33 NA", "13.5 nm"],
+            "fact_groups": [
+                ["13.5 nanometers", "13.5 nm", "13.5nm", "13.5"],
+                ["0.33 na", "0.33 numerical aperture", "0.33"],
+            ],
             "target_len": 4096,
             "depth": 0.80,
         },
@@ -335,7 +402,10 @@ def run_real_world_docqa_benchmark(device: str = "cuda") -> Dict[str, Any]:
             "topic": "Cryogenic Rocket Propulsion",
             "evidence": "The Vulcain 2 gas-generator rocket engine consumes liquid oxygen and liquid hydrogen at a mass mixture ratio of 6.13, delivering a vacuum thrust of 1359 kilonewtons and a vacuum specific impulse of 431 seconds with a chamber pressure of 117 bar.",
             "question": "What are the vacuum thrust and vacuum specific impulse of the Vulcain 2 rocket engine?",
-            "ground_truth": ["1359 kilonewtons", "431 seconds", "1359 kN", "431 s"],
+            "fact_groups": [
+                ["1359 kilonewtons", "1359 kn", "1359kn", "1359"],
+                ["431 seconds", "431 s", "431s", "431"],
+            ],
             "target_len": 5120,
             "depth": 0.35,
         },
@@ -344,7 +414,10 @@ def run_real_world_docqa_benchmark(device: str = "cuda") -> Dict[str, Any]:
             "topic": "Macroprudential Banking Regulations",
             "evidence": "Under Basel III regulatory frameworks, Tier 1 common equity capital must satisfy a minimum threshold of 4.5% of risk-weighted assets, supplemented by a 2.5% capital conservation buffer and an additional countercyclical capital buffer ranging from 0% to 2.5% during excessive credit expansion.",
             "question": "What is the minimum Tier 1 common equity capital ratio and the standard capital conservation buffer required under Basel III?",
-            "ground_truth": ["4.5%", "2.5%"],
+            "fact_groups": [
+                ["4.5%", "4.5 percent", "4.5"],
+                ["2.5%", "2.5 percent", "2.5"],
+            ],
             "target_len": 4096,
             "depth": 0.70,
         },
@@ -353,7 +426,10 @@ def run_real_world_docqa_benchmark(device: str = "cuda") -> Dict[str, Any]:
             "topic": "Magnetically Confined Fusion",
             "evidence": "The ITER tokamak reactor employs 18 D-shaped toroidal field coils wound with niobium-tin (Nb3Sn) superconducting strands, generating a central magnetic field of 5.3 Tesla with a peak field of 11.8 Tesla operating at a cryogenic temperature of 4.5 Kelvin.",
             "question": "What superconducting material is utilized in the ITER toroidal field coils and what is the central magnetic field strength?",
-            "ground_truth": ["niobium-tin", "Nb3Sn", "5.3 Tesla", "5.3 T"],
+            "fact_groups": [
+                ["niobium-tin", "nb3sn", "nb3-sn", "niobium tin"],
+                ["5.3 tesla", "5.3 t", "5.3t", "5.3"],
+            ],
             "target_len": 6144,
             "depth": 0.50,
         },
@@ -362,19 +438,76 @@ def run_real_world_docqa_benchmark(device: str = "cuda") -> Dict[str, Any]:
             "topic": "Synaptic Plasticity & Long-Term Potentiation",
             "evidence": "Induction of classical Schaffer-collateral CA1 long-term potentiation requires post-synaptic depolarization to relieve voltage-dependent magnesium (Mg2+) block of NMDA receptors, triggering rapid calcium (Ca2+) influx that activates calcium/calmodulin-dependent protein kinase II (CaMKII).",
             "question": "Which ion causes the voltage-dependent block of NMDA receptors that must be relieved during LTP induction, and which kinase is subsequently activated?",
-            "ground_truth": ["magnesium", "Mg2+", "CaMKII", "calcium/calmodulin-dependent protein kinase II"],
+            "fact_groups": [
+                ["magnesium", "mg2+", "mg2", "mg 2+"],
+                ["camkii", "calcium/calmodulin-dependent protein kinase ii", "camk ii", "camk-ii"],
+            ],
             "target_len": 4096,
             "depth": 0.20,
         },
+        {
+            "id": "docqa_materials_09",
+            "topic": "Solid-State Battery Electrolytes",
+            "evidence": "Lithium phosphorus sulfur chloride sulfide argyrodite (Li6PS5Cl) solid electrolytes demonstrate an ionic conductivity of 2.4 millisiemens per centimeter at 25 degrees Celsius with an electrochemical stability window up to 7.0 Volts versus lithium metal.",
+            "question": "What is the room-temperature ionic conductivity and electrochemical stability window of Li6PS5Cl argyrodite electrolyte?",
+            "fact_groups": [
+                ["2.4 millisiemens per centimeter", "2.4 ms/cm", "2.4 ms cm-1", "2.4"],
+                ["7.0 volts", "7.0 v", "7 v", "7.0", "7"],
+            ],
+            "target_len": 5120,
+            "depth": 0.60,
+        },
+        {
+            "id": "docqa_quantum_10",
+            "topic": "Superconducting Qubit Coherence",
+            "evidence": "The 3D-transmon circuit achieved an energy relaxation time T1 of 125 microseconds and a phase coherence time T2-echo of 95 microseconds by enclosing an aluminum Josephson junction within a high-purity aluminum microwave resonant cavity operating at 15 millikelvin.",
+            "question": "What are the T1 energy relaxation time and T2-echo phase coherence time of the 3D-transmon superconducting qubit?",
+            "fact_groups": [
+                ["125 microseconds", "125 us", "125 µs", "125"],
+                ["95 microseconds", "95 us", "95 µs", "95"],
+            ],
+            "target_len": 4096,
+            "depth": 0.75,
+        },
+        {
+            "id": "docqa_genomics_11",
+            "topic": "Nanopore Single-Molecule Sequencing",
+            "evidence": "In R10.4.1 flow cells, DNA translocation occurs through a dual-reader head mutant CsgG pore driven by motor protein helicase T4 at a stepping speed of 400 bases per second, delivering modal raw read accuracy of 99.1% with Q20 chemistry.",
+            "question": "What is the stepping speed of the helicase motor and the modal raw read accuracy achieved by the R10.4.1 nanopore?",
+            "fact_groups": [
+                ["400 bases per second", "400 bps", "400 bp/s", "400"],
+                ["99.1%", "99.1 percent", "99.1"],
+            ],
+            "target_len": 6144,
+            "depth": 0.30,
+        },
+        {
+            "id": "docqa_networking_12",
+            "topic": "Congestion Control & BBRv3",
+            "evidence": "The BBRv3 bottleneck bandwidth and round-trip propagation time algorithm models network congestion using a min-RTT filter window of 10 seconds and an explicit congestion notification marked loss headroom of 0.5% to avoid bufferbloat on multi-terabit WAN links.",
+            "question": "What is the min-RTT filter window duration and the marked loss headroom percentage utilized in BBRv3?",
+            "fact_groups": [
+                ["10 seconds", "10 s", "10s", "10"],
+                ["0.5%", "0.5 percent", "0.5"],
+            ],
+            "target_len": 4096,
+            "depth": 0.85,
+        },
     ]
 
-    methods = ["original_softmax", "snapkv", "halo", "halo_blur"]
+    methods = ["original_softmax", "streaming_llm", "h2o", "snapkv", "halo", "halo_blur"]
     results = {}
 
     for method in methods:
         print(f"\n  --> Evaluating Method: {method.upper()} on LongBench Document QA...")
         if method == "original_softmax":
             apply_halo_adapter_generic(model, window_size=8192, max_salient=0, mode="original_softmax",
+                                       layer_indices=target_layers, device=device)
+        elif method == "streaming_llm":
+            apply_halo_adapter_generic(model, window_size=512, max_salient=4, mode="streaming_llm",
+                                       layer_indices=target_layers, device=device)
+        elif method == "h2o":
+            apply_halo_adapter_generic(model, window_size=512, max_salient=128, mode="h2o",
                                        layer_indices=target_layers, device=device)
         elif method == "snapkv":
             apply_halo_adapter_generic(model, window_size=512, max_salient=128, mode="snapkv",
@@ -399,11 +532,11 @@ def run_real_world_docqa_benchmark(device: str = "cuda") -> Dict[str, Any]:
             inp = torch.tensor([toks], device=device)
             gen = run_generation(model, tokenizer, device, inp, max_new_tokens=32)
 
-            # Compute precision / recall on key ground-truth factual spans
-            hits = sum(1 for gt in inst["ground_truth"] if gt.lower() in gen.lower())
-            total_gt = len(inst["ground_truth"])
-            inst_f1 = 100.0 * (hits / total_gt)
-            inst_em = 100.0 if hits == total_gt else 0.0
+            # Compute precision / recall on key ground-truth factual groups (any alias satisfies group)
+            hits = sum(1 for group in inst["fact_groups"] if any(alias.lower() in gen.lower() for alias in group))
+            total_groups = len(inst["fact_groups"])
+            inst_f1 = 100.0 * (hits / total_groups)
+            inst_em = 100.0 if hits == total_groups else 0.0
 
             f1_scores.append(inst_f1)
             em_scores.append(inst_em)

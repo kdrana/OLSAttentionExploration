@@ -42,7 +42,7 @@ def run_worker_serving() -> dict:
 def run_worker_length_single(length: int) -> dict:
     try:
         from experiments.run_oral_upgrade_suite import run_context_length_single_length
-        return {str(length): run_context_length_single_length(T=length, n_trials=6, device="cuda")}
+        return {str(length): run_context_length_single_length(T=length, n_trials=8, device="cuda")}
     except Exception as e:
         import traceback
         return {"error": str(e), "traceback": traceback.format_exc()}
@@ -187,7 +187,7 @@ def generate_oral_plots_cloud(metrics: dict) -> dict[str, bytes]:
     ax.set_xticks(t_keys)
     ax.set_xticklabels(["4k", "8k", "16k", "32k"], fontsize=10.5, fontweight="bold")
     ax.set_xlabel("Context Length $T$ (Tokens)", fontsize=11, fontweight="bold")
-    ax.set_ylabel("Exact Factual Recall (%) [n=10, 95% CI]", fontsize=11, fontweight="bold")
+    ax.set_ylabel("Exact Factual Recall (%) [n=8, 95% CI]", fontsize=11, fontweight="bold")
     ax.set_title(r"Length Invariance: Exact Recall vs. Context Window Scaling ($4\mathrm{k} \to 32\mathrm{k}$)", fontsize=12, fontweight="bold")
     ax.set_ylim(-5, 115)
     ax.legend(loc="center left", fontsize=9.0)
@@ -263,58 +263,35 @@ def generate_oral_plots_cloud(metrics: dict) -> dict[str, bytes]:
 @app.local_entrypoint()
 def main():
     print("\n" + "=" * 80)
-    print("LAUNCHING MODAL EXP-29 ORAL PRESENTATION UPGRADE SUITE")
+    print("LAUNCHING MODAL EXP-29 ORAL PRESENTATION UPGRADE SUITE (FRESH EXECUTION)")
     print("Executing concurrent workers on NVIDIA A10G Cloud GPUs (timeout <= 300s)...")
     print("=" * 80)
 
     out_dir = "results/exp29_oral_presentation_suite"
     metrics_path = os.path.join(out_dir, "metrics.json")
-    cached_metrics = {}
-    if os.path.exists(metrics_path):
-        try:
-            with open(metrics_path) as f:
-                cached_metrics = json.load(f)
-        except Exception:
-            pass
 
-    res_length = cached_metrics.get("context_length_scaling")
-    spawn_length = (not res_length or not isinstance(res_length, dict) or len(res_length) < 4 or "error" in res_length)
-
-    res_docqa = cached_metrics.get("real_world_docqa")
-    spawn_docqa = (not res_docqa or not isinstance(res_docqa, dict) or len(res_docqa) < 4 or "error" in res_docqa)
-
-    # Spawn workers concurrently
+    # Spawn all workers concurrently for fresh execution
     f_serving = run_worker_serving.spawn()
     f_interp = run_worker_interpretability.spawn()
+    f_len_4k = run_worker_length_single.spawn(4096)
+    f_len_8k = run_worker_length_single.spawn(8192)
+    f_len_16k = run_worker_length_single.spawn(16384)
+    f_len_32k = run_worker_length_single.spawn(32768)
+    f_docqa = run_worker_docqa.spawn()
 
-    if spawn_length:
-        f_len_4k = run_worker_length_single.spawn(4096)
-        f_len_8k = run_worker_length_single.spawn(8192)
-        f_len_16k = run_worker_length_single.spawn(16384)
-        f_len_32k = run_worker_length_single.spawn(32768)
-
-    if spawn_docqa:
-        f_docqa = run_worker_docqa.spawn()
-
-    print("\n[Modal Orchestrator] Worker jobs dispatched in parallel. Awaiting results...")
+    print("\n[Modal Orchestrator] All 7 worker jobs dispatched in parallel. Awaiting results...")
 
     res_serving = f_serving.get()
     print("  [✓] Worker 29A: Multi-Tenant Serving Benchmark Completed")
 
-    if spawn_length:
-        res_length = {}
-        for f in [f_len_4k, f_len_8k, f_len_16k, f_len_32k]:
-            out = f.get()
-            res_length.update(out)
-        print("  [✓] Worker 29B: Context Length Scaling Completed (All 4 Lengths: 4k, 8k, 16k, 32k)")
-    else:
-        print("  [✓] Worker 29B: Context Length Scaling Loaded from Cache")
+    res_length = {}
+    for f in [f_len_4k, f_len_8k, f_len_16k, f_len_32k]:
+        out = f.get()
+        res_length.update(out)
+    print("  [✓] Worker 29B: Context Length Scaling Completed (All 4 Lengths: 4k, 8k, 16k, 32k, n=8)")
 
-    if spawn_docqa:
-        res_docqa = f_docqa.get()
-        print("  [✓] Worker 29C: Real-World Document QA Completed")
-    else:
-        print("  [✓] Worker 29C: Real-World Document QA Loaded from Cache")
+    res_docqa = f_docqa.get()
+    print("  [✓] Worker 29C: Real-World Document QA Completed (N=12 Instances, 6 Methods)")
 
     res_interp = f_interp.get()
     print("  [✓] Worker 29D: Mechanistic Interpretability Completed")
