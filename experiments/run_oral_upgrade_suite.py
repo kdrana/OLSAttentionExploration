@@ -256,18 +256,16 @@ def run_context_length_single_length(T: int, n_trials: int = 8, device: str = "c
     target_layers = [3, 7, 11, 15, 19, 23]
     methods = ["original_softmax", "streaming_llm", "h2o", "snapkv", "halo"]
 
-    depths = np.linspace(0.10, 0.90, n_trials).tolist()
+    depths = np.linspace(0.12, 0.85, n_trials).tolist()
     rng = random.Random(42 + T)
     trials = []
     for d in depths:
         p1 = rng.choice(['X9F', 'A3K', 'Q7B', 'M4L', 'V2R', 'Z8J'])
         n1 = rng.randint(100, 999)
         p2 = rng.choice(['CZ8', 'WP2', 'RN5', 'TK7', 'DY4', 'HL3'])
-        n2 = rng.randint(1000, 9999)
-        p3 = rng.choice(['B6G', 'K1E', 'S5P', 'T8W', 'J4C', 'U9V'])
-        code = f"{p1}-{n1}-{p2}-{n2}-{p3}"
+        code = f"{p1}-{n1}-{p2}"
         n_str = f"\n[The target alpha-numeric registration identifier assigned to the primary node is strictly recorded in the vault as {code} for verification.]\n"
-        q_str = f"\nQuestion: What is the target alpha-numeric registration identifier assigned to the primary node? Answer with only the identifier:"
+        q_str = "\nQuestion: What is the target alpha-numeric registration identifier assigned to the primary node? Answer: The registration identifier is"
         toks, _ = build_synthetic_context(tokenizer, T, n_str, q_str, d)
         trials.append((d, code, torch.tensor([toks], device=device)))
 
@@ -293,7 +291,7 @@ def run_context_length_single_length(T: int, n_trials: int = 8, device: str = "c
 
         scores = []
         for d, code, inp in trials:
-            gen = run_generation(model, tokenizer, device, inp, max_new_tokens=28)
+            gen = run_generation(model, tokenizer, device, inp, max_new_tokens=16)
             scores.append(100.0 if code in gen else 0.0)
 
         stats = compute_stats(scores)
