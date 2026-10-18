@@ -37,7 +37,20 @@ from typing import Optional, Tuple, Union, List, Dict, Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers.models.qwen3_5.modeling_qwen3_5 import apply_rotary_pos_emb
+try:
+    from transformers.models.qwen3_5.modeling_qwen3_5 import apply_rotary_pos_emb
+except ImportError:
+    def rotate_half(x):
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2 :]
+        return torch.cat((-x2, x1), dim=-1)
+
+    def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
+        cos = cos.unsqueeze(unsqueeze_dim)
+        sin = sin.unsqueeze(unsqueeze_dim)
+        q_embed = (q * cos) + (rotate_half(q) * sin)
+        k_embed = (k * cos) + (rotate_half(k) * sin)
+        return q_embed, k_embed
 
 
 class PreCacheTranslationLayer(nn.Module):
@@ -92,6 +105,7 @@ class CognitiveDualControlAttention(nn.Module):
         surprise_beta: float = 0.15,
         decay_gamma: float = 0.10,
         record_trace: bool = False,
+        per_head: bool = False,
     ):
         super().__init__()
         self.orig_attn = orig_attn
@@ -105,6 +119,7 @@ class CognitiveDualControlAttention(nn.Module):
         self.surprise_beta = surprise_beta
         self.decay_gamma = decay_gamma
         self.record_trace = record_trace
+        self.per_head = per_head
         self.freeze_salient_cache: bool = False
         self.last_selection_time_ms: float = 0.0
 
@@ -248,6 +263,74 @@ class CognitiveDualControlAttention(nn.Module):
                 return res
 
         # 5. Mode: HALO & HALO_BLUR (PRISM De-Rotation + Observation Alignment + Geometric Surprise + Salience Diffusion)
+        if self.per_head:
+            with torch.no_grad():
+                W_sample = min(64, query_states.shape[2])
+                B = query_states.shape[0]
+                H_kv = self.num_key_value_heads
+                groups = self.num_key_value_groups
+
+                if self.use_derotation:
+                    q_raw_obs = self.translation.translate_q(raw_query_states[:, :, -W_sample:, :])
+                    k_raw_hist = self.translation.translate_k(raw_key_states[:, :, :hist_len, :])
+                    if not self.is_qwen35:
+                        q_raw_obs = F.normalize(q_raw_obs, p=2, dim=-1)
+                        k_raw_hist = F.normalize(k_raw_hist, p=2, dim=-1)
+                    k_raw_exp = k_raw_hist.repeat_interleave(groups, dim=1)
+                    derot_scores = torch.einsum("bhqd,bhtd->bhqt", q_raw_obs.float(), k_raw_exp.float()) / math.sqrt(self.head_dim)
+                    derot_heads = F.softmax(derot_scores, dim=-1).sum(dim=2)  # [B, H, hist_len]
+                    derot_kv = derot_heads.view(B, H_kv, groups, hist_len).sum(dim=2)  # [B, H_kv, hist_len]
+                    derot_attn = derot_kv / (derot_kv.amax(dim=-1, keepdim=True) + 1e-6)
+                else:
+                    derot_attn = None
+
+                q_rope_obs = query_states[:, :, -W_sample:, :]
+                k_rope_hist = key_states[:, :, :hist_len, :].repeat_interleave(groups, dim=1)
+                rope_scores = torch.einsum("bhqd,bhtd->bhqt", q_rope_obs.float(), k_rope_hist.float()) / math.sqrt(self.head_dim)
+                rope_heads = F.softmax(rope_scores, dim=-1).sum(dim=2)  # [B, H, hist_len]
+                rope_kv = rope_heads.view(B, H_kv, groups, hist_len).sum(dim=2)  # [B, H_kv, hist_len]
+                rope_attn = rope_kv / (rope_kv.amax(dim=-1, keepdim=True) + 1e-6)
+
+                if self.use_derotation and derot_attn is not None:
+                    s_td = 0.5 * derot_attn + 0.5 * rope_attn
+                else:
+                    s_td = rope_attn
+
+                if self.use_surprise:
+                    k_source = k_raw_hist if self.use_derotation else raw_key_states[:, :, :hist_len, :]
+                    raw_norms = torch.norm(k_source.float(), p=2, dim=-1).mean(dim=0)  # [H_kv, hist_len]
+                    if hist_len > 31:
+                        norm_smooth = F.avg_pool1d(raw_norms.unsqueeze(1), kernel_size=31, stride=1, padding=15).squeeze(1)
+                        rel_norm = (raw_norms - norm_smooth) / (norm_smooth + 1e-6)
+                        std_norm = rel_norm.std(dim=-1, keepdim=True)
+                        z_norm = F.relu((rel_norm - rel_norm.mean(dim=-1, keepdim=True)) / (std_norm + 1e-6))
+                    else:
+                        std_norm = raw_norms.std(dim=-1, keepdim=True)
+                        z_norm = F.relu((raw_norms - raw_norms.mean(dim=-1, keepdim=True)) / (std_norm + 1e-6))
+                    s_bu = z_norm.unsqueeze(0).expand(B, -1, -1)
+                    s_bu = s_bu / (s_bu.amax(dim=-1, keepdim=True) + 1e-6)
+                    s_total = s_td + self.surprise_beta * s_bu
+                else:
+                    s_total = s_td
+
+                K = self.diffusion_radius
+                if K == 0:
+                    diffused = s_total
+                else:
+                    if self.kernel_type == "uniform_box":
+                        kernel = torch.ones(1, 1, 2 * K + 1, device=device, dtype=torch.float32) / float(2 * K + 1)
+                    else:
+                        delta = torch.arange(-K, K + 1, device=device, dtype=torch.float32)
+                        kernel = torch.exp(-self.decay_gamma * torch.abs(delta)).view(1, 1, -1)
+                        kernel = kernel / kernel.max()
+                    diffused = F.conv1d(s_total.view(B * H_kv, 1, hist_len), kernel, padding=K).view(B, H_kv, hist_len)
+
+                res = torch.topk(diffused, k=min(k_select, hist_len), dim=-1).indices.sort(dim=-1).values
+                if str(device).startswith("cuda"):
+                    torch.cuda.synchronize()
+                self.last_selection_time_ms = (time.perf_counter() - t_start) * 1000.0
+                return res
+
         with torch.no_grad():
             W_sample = min(64, query_states.shape[2])
 
@@ -496,8 +579,13 @@ class CognitiveDualControlAttention(nn.Module):
 
                 elif self.current_salient_indices is not None:
                     salient_inds = self.current_salient_indices
-                    self.salient_k_cache = hist_k[:, :, salient_inds, :]
-                    self.salient_v_cache = hist_v[:, :, salient_inds, :]
+                    if salient_inds.dim() == 3:
+                        idx = salient_inds.unsqueeze(-1).expand(-1, -1, -1, self.head_dim)
+                        self.salient_k_cache = torch.gather(hist_k, dim=2, index=idx)
+                        self.salient_v_cache = torch.gather(hist_v, dim=2, index=idx)
+                    else:
+                        self.salient_k_cache = hist_k[:, :, salient_inds, :]
+                        self.salient_v_cache = hist_v[:, :, salient_inds, :]
 
                 else:
                     salient_inds = self.compute_salience_indices(
@@ -507,8 +595,13 @@ class CognitiveDualControlAttention(nn.Module):
                         key_states=key_states,
                         hist_len=hist_len,
                     )
-                    self.salient_k_cache = hist_k[:, :, salient_inds, :]
-                    self.salient_v_cache = hist_v[:, :, salient_inds, :]
+                    if salient_inds.dim() == 3:
+                        idx = salient_inds.unsqueeze(-1).expand(-1, -1, -1, self.head_dim)
+                        self.salient_k_cache = torch.gather(hist_k, dim=2, index=idx)
+                        self.salient_v_cache = torch.gather(hist_v, dim=2, index=idx)
+                    else:
+                        self.salient_k_cache = hist_k[:, :, salient_inds, :]
+                        self.salient_v_cache = hist_v[:, :, salient_inds, :]
 
                 self.local_k_cache = key_states[:, :, -self.window_size:]
                 self.local_v_cache = value_states[:, :, -self.window_size:]
@@ -546,6 +639,7 @@ def apply_halo_adapter_generic(
     record_trace: bool = False,
     layer_indices: Optional[List[int]] = None,
     device: str = "cuda",
+    per_head: bool = False,
 ):
     """
     Generic adapter hooking function supporting:
@@ -577,6 +671,7 @@ def apply_halo_adapter_generic(
             surprise_beta=surprise_beta,
             decay_gamma=decay_gamma,
             record_trace=record_trace,
+            per_head=per_head,
         ).to(device=device, dtype=target_dtype)
 
         def make_wrapper(mod):
