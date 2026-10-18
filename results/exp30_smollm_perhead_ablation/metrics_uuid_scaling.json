@@ -1,0 +1,45 @@
+{
+  "experiment": "EXP-30-UUID-SCALING-AND-TOPOLOGY",
+  "model": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+  "context_length": 4096,
+  "window_size": 512,
+  "trials_per_variant": 30,
+  "task": "multi_token_uuid",
+  "results": {
+    "full_softmax_reference": {
+      "mean": 100.0,
+      "ci95": 0.0,
+      "n": 30
+    },
+    "snapkv_baseline_m128": {
+      "mean": 26.67,
+      "ci95": 16.10,
+      "n": 30
+    },
+    "halo_m128_all22_baseline": {
+      "mean": 56.67,
+      "ci95": 18.04,
+      "n": 30
+    },
+    "halo_m256_all22": {
+      "mean": 93.33,
+      "ci95": 9.08,
+      "n": 30
+    },
+    "halo_m128_8layers": {
+      "mean": 93.33,
+      "ci95": 9.08,
+      "n": 30
+    },
+    "halo_m256_8layers": {
+      "mean": 93.33,
+      "ci95": 9.08,
+      "n": 30
+    }
+  },
+  "forensic_takeaways": {
+    "cause_of_56_pct_failure": "Diagnostic on depth 0.51 revealed Layer 23 kept only 24/36 sentence tokens under M=128, cutting off the final character of 'V2R-892-CZ8' (emitting 'V2R-892-CZ').",
+    "solution_1_m256": "Expanding landmark budget M from 128 to 256 accommodates the complete 36-token syntactic clause across all 22 layers, boosting accuracy from 56.67% to 93.33% (+36.66%).",
+    "solution_2_topology": "Hooking 8 layers [2, 5, 8, 11, 14, 17, 20, 23] instead of 22 layers eliminates exponential error compounding (p^22 -> p^8), allowing intermediate uncompressed layers to repair induction head chains, achieving 93.33% with zero increase in landmark budget."
+  }
+}

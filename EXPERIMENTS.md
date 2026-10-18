@@ -1751,4 +1751,21 @@ On models with high Multi-Head Attention (MHA) head count ($H_{\text{kv}} = 32$ 
 3. **Architectural Guideline for Post-Training Compression:**
    In Grouped-Query Attention (GQA, Qwen3.5 and Llama-3.2 where $H_{\text{kv}} \in \{2, 8\}$), head pooling is optimal because multiple query heads inherently share the same KV representations. In 32-head MHA, head pooling (`HALO-Shared`) maintains composite entity binding ($56.67\%$ vs SnapKV $26.67\%$), while `HALO-PerHead` provides maximum preservation for isolated semantic facts ($83.33\%$).
 
+#### Follow-up Investigation: Resolving the Multi-Token UUID Bottleneck on SmolLM2
+Forensic inspection of depth $0.51$ revealed that failure in multi-token UUID was caused by tail truncation of the 36-token syntactic clause at Layer 23 (keeping only 24/36 sentence tokens), resulting in dropped final characters (`'V2R-892-CZ'` instead of `'V2R-892-CZ8'`).
+
+Two structural solutions were tested across the full $n=30$ UUID benchmark:
+| Configuration | Hooked Layers | Landmark Cache $M$ | Multi-Token UUID Accuracy (%) [95% CI] | Relative Retention vs Softmax |
+| :--- | :---: | :---: | :---: | :---: |
+| **Full Softmax Reference** | 0 (None) | Full Context | $100.0\% \pm 0.0\%$ | $100.0\%$ |
+| **SnapKV Baseline** | 22 Layers | $M = 128$ | $26.67\% \pm 16.10\%$ | $26.7\%$ |
+| **HALO Baseline** | 22 Layers | $M = 128$ | $56.67\% \pm 18.04\%$ | $56.7\%$ |
+| **HALO-M256 (Budget Scaling)** | 22 Layers | $M = 256$ | $\mathbf{93.33\% \pm 9.08\%}$ | $\mathbf{93.3\%}$ |
+| **HALO-8Layers (Layer Topology)** | 8 Layers | $M = 128$ | $\mathbf{93.33\% \pm 9.08\%}$ | $\mathbf{93.3\%}$ |
+| **HALO-M256-8Layers** | 8 Layers | $M = 256$ | $\mathbf{93.33\% \pm 9.08\%}$ | $\mathbf{93.3\%}$ |
+
+**Key Takeaway:**
+Expanding $M$ from $128 \to 256$ accommodates the full 36-token sentence across all 22 layers, boosting UUID accuracy from $56.67\% \to \mathbf{93.33\%}$ (**$+36.66\%$**). Alternatively, adopting an 8-layer topology (`[2, 5, 8, 11, 14, 17, 20, 23]`, mirroring Qwen's hybrid spacing) eliminates exponential compounding error ($p^{22} \to p^8$), allowing intermediate uncompressed layers to repair induction circuits and delivering **$93.33\%$** with the exact same $M=128$ budget!
+
+
 
